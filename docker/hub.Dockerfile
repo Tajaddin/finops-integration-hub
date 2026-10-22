@@ -11,7 +11,9 @@ COPY src ./src
 RUN uv sync --locked --extra triage
 
 FROM python:3.12.12-slim
-RUN useradd --system --uid 10001 --no-create-home hub
+# Debian security fixes published after the base image was built (CI's trivy scan fails on fixed CRITICAL ones).
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+ && useradd --system --uid 10001 --no-create-home hub
 WORKDIR /app
 COPY --from=build --chown=hub:hub /app /app
 COPY --chmod=0755 docker/hub-start.sh /usr/local/bin/hub-start
