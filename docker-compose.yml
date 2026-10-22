@@ -1,0 +1,137 @@
+# Local stack. `make up` starts everything; CI starts subsets by profile. Every port binds to 127.0.0.1.
+#   core        Postgres, Odoo (ERP), EspoCRM (CRM), Mailpit, the hub
+#   tickets     Zammad (Elasticsearch disabled, ADR 0004)
+#   automation  n8n
+#   llm         Langfuse (web, worker, ClickHouse, Redis, MinIO); the model runs in Ollama on the host
+#   obs         Prometheus and Grafana
+name: finops
+
+x-hub-env: &hub-env
+  HUB_DATABASE_URL: postgresql://hub:${HUB_DB_PASSWORD}@pg:5432/hub
+  HUB_ODOO_URL: http://odoo:8069
+  HUB_ODOO_DATABASE: odoo
+  HUB_ODOO_API_KEY_FILE: /secrets/odoo_api_key
+  HUB_ESPOCRM_URL: http://espocrm
+  HUB_ESPOCRM_API_KEY_FILE: /secrets/espocrm_api_key
+  HUB_ESPOCRM_WEBHOOK_SECRET_FILE: /secrets/espocrm_webhook_secret
+  HUB_ZAMMAD_URL: http://zammad-nginx:8080
+  HUB_ZAMMAD_TOKEN_FILE: /secrets/zammad_token
+  HUB_API_KEY: ${HUB_API_KEY}
+  HUB_CRM: ${HUB_CRM:-espocrm}
+  HUB_TICKETS: ${HUB_TICKETS:-zammad}
+  HUB_OLLAMA_URL: http://host.docker.internal:11434
+  HUB_TRIAGE_MODEL: ${HUB_TRIAGE_MODEL:-qwen2.5:7b}
+  HUB_EMBED_MODEL: ${HUB_EMBED_MODEL:-nomic-embed-text}
+  HUB_LANGFUSE_URL: http://langfuse-web:3000
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+  HUB_SMTP_HOST: mailpit
+  HUB_LOG_LEVEL: ${HUB_LOG_LEVEL:-INFO}
+
+services:
+  pg:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ODOO_DB_PASSWORD: ${ODOO_DB_PASSWORD}
+      HUB_DB_PASSWORD: ${HUB_DB_PASSWORD}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD}
+      ZAMMAD_DB_PASSWORD: ${ZAMMAD_DB_PASSWORD}
+      LANGFUSE_DB_PASSWORD: ${LANGFUSE_DB_PASSWORD}
+      ESPOCRM_DB_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-databases.sh:ro
+    ports: ["127.0.0.1:55432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    profiles: [core]
+
+  odoo-init:
+    image: odoo:19.0-20261015
+    entrypoint: ["bash", "/bootstrap/init.sh"]
+    environment: &odoo-env
+      HOST: pg
+      USER: odoo
+      PASSWORD: ${ODOO_DB_PASSWORD}
+      ODOO_ADMIN_PASSWORD: ${ODOO_ADMIN_PASSWORD}
+    volumes:
+      - ./docker/odoo/odoo.conf:/etc/odoo/odoo.conf:ro
+      - ./docker/odoo:/bootstrap:ro
+      - ./.secrets:/secrets
+      - odoo-data:/var/lib/odoo
+    depends_on:
+      pg: { condition: service_healthy }
+    profiles: [core]
+
+  odoo:
+    image: odoo:19.0-20261015
+    environment: *odoo-env
+    volumes:
+      - ./docker/odoo/odoo.conf:/etc/odoo/odoo.conf:ro
+      - odoo-data:/var/lib/odoo
+    ports: ["127.0.0.1:8069:8069"]
+    depends_on:
+      odoo-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8069/web/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    profiles: [core]
+
+  espocrm:
+    image: espocrm/espocrm:10.0.10-apache
+    environment: &espo-env
+      ESPOCRM_DATABASE_PLATFORM: Postgresql
+      ESPOCRM_DATABASE_HOST: pg
+      ESPOCRM_DATABASE_PORT: "5432"
+      ESPOCRM_DATABASE_NAME: espocrm
+      ESPOCRM_DATABASE_USER: espocrm
+      ESPOCRM_DATABASE_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+      ESPOCRM_ADMIN_USERNAME: admin
+      ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD}
+      ESPOCRM_SITE_URL: http://127.0.0.1:8080
+    volumes: &espo-volumes
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+    ports: ["127.0.0.1:8080:80"]
+    depends_on:
+      pg: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "bin/command app-check || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    profiles: [core]
+
+  espocrm-daemon:
+    # runs EspoCRM's scheduled jobs, including the webhook queue that delivers Opportunity events
+    image: espocrm/espocrm:10.0.10-apache
+    entrypoint: docker-daemon.sh
+    environment: *espo-env
+    volumes: *espo-volumes
+    depends_on:
+      espocrm: { condition: service_healthy }
+    restart: unless-stopped
+    profiles: [core]
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    restart: unless-stopped
+    profiles: [core]
+
+volumes:
+  pg-data:
+  odoo-data:
+  espocrm-data:
+  espocrm-custom:
+  espocrm-client-custom:

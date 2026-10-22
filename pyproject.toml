@@ -1,0 +1,83 @@
+[project]
+name = "finops-integration-hub"
+version = "0.1.0"
+description = "Order-to-cash integration for a finance-ops team: CRM to ERP sync, reconciliation, tickets, n8n workflows and an LLM triage agent with traces"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Tajaddin Gafarov", email = "gafarovtajaddin@gmail.com" }]
+dependencies = [
+  "httpx>=0.28",
+  "tenacity>=9.1",
+  "pydantic>=2.11",
+  "pydantic-settings>=2.11",
+  "psycopg[binary,pool]>=3.2",
+  "fastapi>=0.120",
+  "uvicorn[standard]>=0.38",
+  "slowapi>=0.1.9",
+  "typer>=0.20",
+  "structlog>=25.4",
+  "prometheus-client>=0.23",
+]
+
+[project.optional-dependencies]
+# The triage agent: LlamaIndex over pgvector with a local Ollama model, traced to Langfuse through OpenInference.
+triage = [
+  "llama-index-core==0.14.25",
+  "llama-index-llms-ollama>=0.9",
+  "llama-index-embeddings-ollama>=0.8",
+  "llama-index-vector-stores-postgres>=0.7",
+  "openinference-instrumentation-llama-index>=4.3",
+  "langfuse>=5.0,<6",
+  "scikit-learn>=1.7",
+  "datasets>=4.0",
+]
+dev = [
+  "pytest>=8.4",
+  "pytest-cov>=7",
+  "respx>=0.22",
+  "testcontainers[postgres]>=4.13",
+  "ruff>=0.14",
+  "mypy>=1.18",
+  "pip-audit>=2.9",
+]
+
+[project.scripts]
+hub = "hub.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hub"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "S", "W", "PL", "RUF", "SIM", "C4", "PT"]
+ignore = ["PLR0913", "PLR0917", "N818", "PLR2004", "S101", "S603", "S607", "E501", "PLC0415", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLR", "PT018"]
+"docker/odoo/bootstrap.py" = ["F821", "PLW0127"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+  "integration: needs the local stack (`make up`) or a Testcontainers database",
+]
+
+[tool.coverage.run]
+source = ["src/hub"]
+omit = ["src/hub/cli.py"]
