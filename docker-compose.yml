@@ -28,6 +28,33 @@ x-hub-env: &hub-env
   HUB_SMTP_HOST: mailpit
   HUB_LOG_LEVEL: ${HUB_LOG_LEVEL:-INFO}
 
+x-zammad: &zammad-service
+  image: ghcr.io/zammad/zammad:7.2.2-0016
+  init: true
+  restart: unless-stopped
+  profiles: [tickets]
+  environment: &zammad-environment
+    POSTGRESQL_HOST: pg
+    POSTGRESQL_PORT: "5432"
+    POSTGRESQL_DB: zammad
+    POSTGRESQL_USER: zammad
+    POSTGRESQL_PASS: ${ZAMMAD_DB_PASSWORD}
+    POSTGRESQL_OPTIONS: "?pool=20"
+    POSTGRESQL_DB_CREATE: "false"
+    MEMCACHE_SERVERS: zammad-memcached:11211
+    REDIS_URL: redis://zammad-redis:6379
+    ELASTICSEARCH_ENABLED: "false"
+    ZAMMAD_FQDN: 127.0.0.1:8081
+    ZAMMAD_HTTP_TYPE: http
+    ZAMMAD_WEB_CONCURRENCY: "1"
+    TZ: UTC
+  volumes:
+    - zammad-storage:/opt/zammad/storage
+  depends_on: &zammad-deps
+    pg: { condition: service_healthy }
+    zammad-memcached: { condition: service_healthy }
+    zammad-redis: { condition: service_healthy }
+
 services:
   pg:
     image: pgvector/pgvector:pg17
@@ -123,11 +150,123 @@ services:
     restart: unless-stopped
     profiles: [core]
 
+  espocrm-config:
+    # allow-lists the hub as a webhook target (EspoCRM blocks private addresses by default)
+    image: espocrm/espocrm:10.0.10-apache
+    entrypoint: ["php", "/bootstrap/allow-webhooks.php", "hub:8000"]
+    environment: *espo-env
+    volumes:
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+      - espocrm-client-custom:/var/www/html/client/custom
+      - ./docker/espocrm:/bootstrap:ro
+    depends_on:
+      espocrm: { condition: service_healthy }
+    restart: "no"
+    profiles: [core]
+
+  hub:
+    build: { context: ., dockerfile: docker/hub.Dockerfile }
+    image: finops-integration-hub:local
+    environment: *hub-env
+    volumes: ["./.secrets:/secrets:ro"]
+    ports: ["127.0.0.1:8000:8000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      pg: { condition: service_healthy }
+      odoo: { condition: service_healthy }
+      espocrm: { condition: service_healthy }
+    restart: unless-stopped
+    profiles: [core]
+
   mailpit:
     image: axllent/mailpit:v1.27
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
     restart: unless-stopped
     profiles: [core]
+
+  # --- tickets: Zammad (upstream zammad-docker-compose, Elasticsearch disabled, the shared Postgres) ---------------
+  zammad-init:
+    <<: *zammad-service
+    command: ["zammad-init"]
+    restart: on-failure
+    user: "0:0"
+    depends_on: *zammad-deps
+
+  zammad-bootstrap:
+    <<: *zammad-service
+    command: ["bundle", "exec", "rails", "r", "/bootstrap/bootstrap.rb"]
+    restart: "no"
+    user: "0:0"
+    environment:
+      <<: *zammad-environment
+      ZAMMAD_ADMIN_PASSWORD: ${ZAMMAD_ADMIN_PASSWORD}
+    volumes:
+      - zammad-storage:/opt/zammad/storage
+      - ./docker/zammad:/bootstrap:ro
+      - ./.secrets:/secrets
+    depends_on:
+      zammad-init: { condition: service_completed_successfully }
+
+  zammad-railsserver:
+    <<: *zammad-service
+    command: ["zammad-railsserver"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 10
+    depends_on:
+      zammad-bootstrap: { condition: service_completed_successfully }
+
+  zammad-scheduler:
+    <<: *zammad-service
+    command: ["zammad-scheduler"]
+    depends_on:
+      zammad-bootstrap: { condition: service_completed_successfully }
+
+  zammad-websocket:
+    <<: *zammad-service
+    command: ["zammad-websocket"]
+    depends_on:
+      zammad-bootstrap: { condition: service_completed_successfully }
+
+  zammad-nginx:
+    <<: *zammad-service
+    command: ["zammad-nginx"]
+    init: false
+    ports: ["127.0.0.1:8081:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -o /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+    depends_on:
+      zammad-railsserver: { condition: service_healthy }
+
+  zammad-memcached:
+    image: memcached:1.6.45-alpine
+    command: memcached -m 128M
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "11211"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles: [tickets]
+
+  zammad-redis:
+    image: redis:8.10.2-alpine
+    volumes: [zammad-redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles: [tickets]
 
 volumes:
   pg-data:
@@ -135,3 +274,5 @@ volumes:
   espocrm-data:
   espocrm-custom:
   espocrm-client-custom:
+  zammad-storage:
+  zammad-redis-data:

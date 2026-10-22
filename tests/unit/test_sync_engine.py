@@ -154,3 +154,16 @@ def test_validate_accepts_price_book_amounts() -> None:
     validate(make_deal(0, plan=Plan.ENTERPRISE, amount=amount_of(make_deal(0, plan=Plan.ENTERPRISE))))
     with pytest.raises(Exception, match="price book"):
         validate(make_deal(0, amount=Decimal("1.00")))
+
+
+def test_billing_status_refresh_writes_paid_back_to_the_crm(store: Store) -> None:
+    crm, erp = FakeCrm([make_deal(i) for i in range(3)]), FakeErp()
+    engine(crm, erp, store).run()
+    for d in crm.deal_map.values():  # the CRM now shows what the write-back sent
+        crm.deal_map[d.id] = replace(
+            d, billing_status=BillingStatus.INVOICED, erp_invoice_ref=f"INV/2026/{int(d.id[4:]) + 1:05d}"
+        )
+    erp.invoice_rows[2] = replace(erp.invoice_rows[2], payment_state="paid")
+    out = engine(crm, erp, store).refresh_billing_status()
+    assert out == {"checked": 3, "queued": 1, "sent": 1, "failed": 0}
+    assert crm.writebacks[-1] == ("deal1", "INV/2026/00002", BillingStatus.PAID)

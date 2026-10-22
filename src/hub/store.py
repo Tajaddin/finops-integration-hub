@@ -116,19 +116,30 @@ class Store:
             )
             conn.commit()
 
-    def queue_writeback(self, crm: str, deal_id: str, invoice_ref: str | None, billing_status: str) -> None:
+    def queue_writeback(
+        self, crm: str, deal_id: str, invoice_ref: str | None, billing_status: str, force: bool = False
+    ) -> None:
+        """`force` re-sends even if the outbox already delivered these values (the CRM was changed by hand since)."""
         with self.connect() as conn:
-            self._queue_writeback(conn, crm, deal_id, invoice_ref, billing_status)
+            self._queue_writeback(conn, crm, deal_id, invoice_ref, billing_status, force)
             conn.commit()
 
     @staticmethod
-    def _queue_writeback(conn: psycopg.Connection[Any], crm: str, deal_id: str, ref: str | None, status: str) -> None:
+    def _queue_writeback(
+        conn: psycopg.Connection[Any], crm: str, deal_id: str, ref: str | None, status: str, force: bool = False
+    ) -> None:
+        only_if_changed = (
+            ""
+            if force
+            else """WHERE crm_writeback.invoice_ref IS DISTINCT FROM EXCLUDED.invoice_ref
+                  OR crm_writeback.billing_status IS DISTINCT FROM EXCLUDED.billing_status"""
+        )
         conn.execute(
             """INSERT INTO crm_writeback (crm, deal_id, invoice_ref, billing_status) VALUES (%s, %s, %s, %s)
                ON CONFLICT (crm, deal_id) DO UPDATE SET invoice_ref = EXCLUDED.invoice_ref,
                    billing_status = EXCLUDED.billing_status, done_at = NULL, attempts = 0, last_error = NULL
-               WHERE crm_writeback.invoice_ref IS DISTINCT FROM EXCLUDED.invoice_ref
-                  OR crm_writeback.billing_status IS DISTINCT FROM EXCLUDED.billing_status""",
+               """
+            + only_if_changed,  # type: ignore[operator]
             (crm, deal_id, ref, status),
         )
 
@@ -194,3 +205,66 @@ class Store:
                 (status, json.dumps(stats, default=str), run_id),
             )
             conn.commit()
+
+    # reconciliation runs
+    def save_recon_run(self, crm: str, exceptions: list[Any], stats: dict[str, Any]) -> int:
+        with self.connect() as conn:
+            row = conn.execute(
+                "INSERT INTO recon_run (crm, finished_at, stats) VALUES (%s, now(), %s) RETURNING id",
+                (crm, json.dumps(stats, default=str)),
+            ).fetchone()
+            assert row is not None
+            run_id = int(row["id"])
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """INSERT INTO recon_exception (run_id, fingerprint, kind, key, severity, summary, detail)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    [
+                        (run_id, e.fingerprint, e.kind, e.key, e.severity, e.summary, json.dumps(e.detail, default=str))
+                        for e in exceptions
+                    ],
+                )
+            return run_id
+
+    # tickets
+    def open_ticket_links(self, system: str) -> dict[str, dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ticket_link WHERE system = %s AND closed_at IS NULL", (system,)
+            ).fetchall()
+            return {r["fingerprint"]: r for r in rows}
+
+    def save_ticket_link(
+        self, system: str, fp: str, kind: str, key: str, ticket_id: str, ref: str, run_id: int
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO ticket_link (system, fingerprint, kind, key, ticket_id, ticket_ref, last_seen_run)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (system, fp, kind, key, ticket_id, ref, run_id),
+            )
+
+    def touch_ticket(self, system: str, fp: str, run_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE ticket_link SET last_seen_run = %s WHERE system = %s AND fingerprint = %s AND closed_at IS NULL",
+                (run_id, system, fp),
+            )
+
+    def close_ticket_link(self, system: str, fp: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE ticket_link SET closed_at = now() WHERE system = %s AND fingerprint = %s AND closed_at IS NULL",
+                (system, fp),
+            )
+
+    # webhooks
+    def accept_delivery(self, digest: str, source: str, records: int) -> bool:
+        """True the first time a delivery is seen; False for a replay."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """INSERT INTO webhook_delivery (digest, source, records) VALUES (%s, %s, %s)
+                   ON CONFLICT (digest) DO NOTHING RETURNING digest""",
+                (digest, source, records),
+            ).fetchone()
+            return row is not None

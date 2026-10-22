@@ -1,0 +1,590 @@
+{
+  "per_class_injected": 8,
+  "seed": 1,
+  "payments": {
+    "unpaid_before": 286,
+    "paid_in_full": 207,
+    "paid_partially": 13
+  },
+  "status_refresh_before": {
+    "checked": 286,
+    "queued": 220,
+    "sent": 220,
+    "failed": 0
+  },
+  "baseline": {
+    "exceptions": 14,
+    "by_kind": {
+      "missing_invoice": 14,
+      "cancelled_invoice": 0,
+      "duplicate_invoice": 0,
+      "amount_mismatch": 0,
+      "currency_mismatch": 0,
+      "orphan_invoice": 0,
+      "duplicate_customer": 0,
+      "billing_status_drift": 0
+    }
+  },
+  "injected": {
+    "amount_mismatch": 16,
+    "billing_status_drift": 8,
+    "cancelled_invoice": 8,
+    "currency_mismatch": 8,
+    "duplicate_customer": 8,
+    "duplicate_invoice": 8,
+    "missing_invoice": 22,
+    "orphan_invoice": 8
+  },
+  "detect_run": {
+    "deals": 644,
+    "won_deals": 300,
+    "invoices": 294,
+    "customers": 224,
+    "exceptions": 86,
+    "read_seconds": 0.255,
+    "compare_seconds": 0.004,
+    "seconds": 12.784
+  },
+  "tickets_first_run": {
+    "opened": 86,
+    "already_open": 0,
+    "reopened_after_manual_close": 0,
+    "closed_resolved": 0,
+    "failed": 0
+  },
+  "score": {
+    "overall": {
+      "truth": 86,
+      "detected": 86,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "per_class": {
+      "missing_invoice": {
+        "truth": 22,
+        "detected": 22,
+        "true_positives": 22,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "cancelled_invoice": {
+        "truth": 8,
+        "detected": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "duplicate_invoice": {
+        "truth": 8,
+        "detected": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "amount_mismatch": {
+        "truth": 16,
+        "detected": 16,
+        "true_positives": 16,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "currency_mismatch": {
+        "truth": 8,
+        "detected": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "orphan_invoice": {
+        "truth": 8,
+        "detected": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "duplicate_customer": {
+        "truth": 8,
+        "detected": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "billing_status_drift": {
+        "truth": 8,
+        "detected": 8,
+        "true_positives": 8,
+        "false_positives": 0,
+        "false_negatives": 0,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "false_positives": [],
+    "false_negatives": []
+  },
+  "tickets_rerun": {
+    "opened": 0,
+    "already_open": 86,
+    "reopened_after_manual_close": 0,
+    "closed_resolved": 0,
+    "failed": 0
+  },
+  "repair": {
+    "status_refresh": {
+      "checked": 270,
+      "queued": 8,
+      "sent": 8,
+      "failed": 0
+    },
+    "sync": {
+      "seen": 300,
+      "created": 8,
+      "linked": 0,
+      "unchanged": 270,
+      "skipped_cancelled": 8,
+      "customers_created": 3,
+      "dead_lettered": 14,
+      "writebacks_sent": 8,
+      "writebacks_failed": 0,
+      "seconds": 8.254,
+      "deal_ms_p50": 16.4,
+      "deal_ms_p95": 38.4
+    }
+  },
+  "after_repair": {
+    "exceptions": 70,
+    "by_kind": {
+      "missing_invoice": 14,
+      "cancelled_invoice": 8,
+      "duplicate_invoice": 8,
+      "amount_mismatch": 16,
+      "currency_mismatch": 8,
+      "orphan_invoice": 8,
+      "duplicate_customer": 8,
+      "billing_status_drift": 0
+    },
+    "tickets": {
+      "opened": 0,
+      "already_open": 70,
+      "reopened_after_manual_close": 0,
+      "closed_resolved": 16,
+      "failed": 0
+    }
+  },
+  "truth_actions": [
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bf9214867ead",
+      "action": "ERP line price +1.00",
+      "invoice": 152
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bd83a3897ecc",
+      "action": "ERP line price +1.00",
+      "invoice": 71
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bcc723e53b9b",
+      "action": "ERP line price +1.00",
+      "invoice": 49
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96c2f9ffe79d1c",
+      "action": "ERP line price +1.00",
+      "invoice": 262
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bf3a03a72d11",
+      "action": "ERP line price +1.00",
+      "invoice": 135
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bb6d52aaf562",
+      "action": "ERP line price +1.00",
+      "invoice": 2
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96beecd492537d",
+      "action": "ERP line price +1.00",
+      "invoice": 125
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bf4127a09db2",
+      "action": "ERP line price +1.00",
+      "invoice": 137
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bee97d9179db",
+      "action": "CRM amount 1382.25 -> 1520.48"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bdb23ede03a8",
+      "action": "CRM amount 186.20 -> 204.82"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96bdf72cf71836",
+      "action": "CRM amount 1356.60 -> 1492.26"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96c049330f23c9",
+      "action": "CRM amount 2848.86 -> 3133.75"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96c0d503ec42a6",
+      "action": "CRM amount 306.00 -> 336.60"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96c38c4e7e9dc8",
+      "action": "CRM amount 2313.36 -> 2544.70"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96c232b9cb8e0d",
+      "action": "CRM amount 705.60 -> 776.16"
+    },
+    {
+      "kind": "amount_mismatch",
+      "key": "6ad96c23901af89a7",
+      "action": "CRM amount 776.00 -> 853.60"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96bc41a41d7c7e",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96bf18b8a7c2f5",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96c2be01e19e79",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96c21483a8f945",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96bcb00a4ee282",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96c1cd534c1b14",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96c0cda5e7f7d5",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "currency_mismatch",
+      "key": "6ad96c2dbda62cbcb",
+      "action": "CRM currency USD -> EUR"
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96c235d6c72fce",
+      "action": "ERP invoice cancelled",
+      "invoice": 238
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96bf3d2d28540f",
+      "action": "ERP invoice cancelled",
+      "invoice": 136
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96bc65b362a950",
+      "action": "ERP invoice cancelled",
+      "invoice": 33
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96bfe526dcc8f8",
+      "action": "ERP invoice cancelled",
+      "invoice": 161
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96bcb6528f946b",
+      "action": "ERP invoice cancelled",
+      "invoice": 46
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96bdfd67e88d3b",
+      "action": "ERP invoice cancelled",
+      "invoice": 90
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96c10d664d494b",
+      "action": "ERP invoice cancelled",
+      "invoice": 201
+    },
+    {
+      "kind": "cancelled_invoice",
+      "key": "6ad96c01d5056bc04",
+      "action": "ERP invoice cancelled",
+      "invoice": 170
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "117",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96beadc3c26e38"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "236",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96c22ecc8dab97"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "168",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96c0170bdcb1ef"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "67",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96bd5edbdf8e4b"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "34",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96bc6c0f698174"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "263",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96c2fd1a7c5f1a"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "231",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96c21ae0eca585"
+    },
+    {
+      "kind": "orphan_invoice",
+      "key": "169",
+      "action": "CRM deal moved to Closed Lost",
+      "deal": "6ad96c01a32946a86"
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96c02ab5d2c8cc",
+      "action": "second ERP invoice for the deal",
+      "invoice": 507
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96be93b1bd5364",
+      "action": "second ERP invoice for the deal",
+      "invoice": 508
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96bbd4594d934b",
+      "action": "second ERP invoice for the deal",
+      "invoice": 509
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96bb92408b837a",
+      "action": "second ERP invoice for the deal",
+      "invoice": 510
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96c176516a4aef",
+      "action": "second ERP invoice for the deal",
+      "invoice": 511
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96bcdde9a59356",
+      "action": "second ERP invoice for the deal",
+      "invoice": 512
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96be150478156f",
+      "action": "second ERP invoice for the deal",
+      "invoice": 513
+    },
+    {
+      "kind": "duplicate_invoice",
+      "key": "6ad96c293412f5135",
+      "action": "second ERP invoice for the deal",
+      "invoice": 514
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96be8661b3b50c",
+      "action": "ERP payment registered",
+      "invoice": 113
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96c35aa6e2c288",
+      "action": "ERP payment registered",
+      "invoice": 275
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96c30a8857f14a",
+      "action": "ERP payment registered",
+      "invoice": 265
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96c059a8060633",
+      "action": "ERP payment registered",
+      "invoice": 179
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96bb7465647b96",
+      "action": "ERP payment registered",
+      "invoice": 3
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96c0921c9e6a5a",
+      "action": "ERP payment registered",
+      "invoice": 184
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96bbf886b79402",
+      "action": "ERP payment registered",
+      "invoice": 19
+    },
+    {
+      "kind": "billing_status_drift",
+      "key": "6ad96c0503ea76db9",
+      "action": "ERP payment registered",
+      "invoice": 177
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96c1513bea87bb",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96bd2436c11fa3",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96bc26c9fa72ee",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96bc30f999e893",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96bec5747daa5b",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96bf04e69f9ba1",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96c3a0b832fc73",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "missing_invoice",
+      "key": "6ad96c100bd27a195",
+      "action": "CRM deal won after the last sync"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "183,223",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "167,224",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "85,225",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "175,226",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "145,227",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "151,228",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "196,229",
+      "action": "duplicate ERP customer"
+    },
+    {
+      "kind": "duplicate_customer",
+      "key": "52,230",
+      "action": "duplicate ERP customer"
+    }
+  ]
+}

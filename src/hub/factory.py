@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from hub.config import Settings, read_secret
@@ -10,6 +11,10 @@ from hub.connectors.espocrm import Espo, EspoCrm
 from hub.connectors.odoo import Odoo, OdooErp
 from hub.connectors.salesforce import SalesforceCrm
 from hub.store import Store
+from hub.tickets import TicketSink
+from hub.tickets.github import GitHubTickets
+from hub.tickets.jira import JiraTickets
+from hub.tickets.zammad import ZammadTickets
 
 
 def odoo(settings: Settings, admin: bool = False) -> Odoo:
@@ -49,6 +54,25 @@ def crm(settings: Settings) -> CrmSource:
         retries=settings.http_retries,
     )
     return EspoCrm(client)
+
+
+def tickets(settings: Settings) -> TicketSink | None:
+    if settings.tickets == "none":
+        return None
+    if settings.tickets == "github":
+        token = os.environ.get("GITHUB_TOKEN")
+        if not (settings.github_repo and token):
+            raise ValueError("HUB_TICKETS=github needs HUB_GITHUB_REPO and GITHUB_TOKEN")
+        return GitHubTickets(settings.github_repo, token, timeout=settings.http_timeout_seconds)
+    if settings.tickets == "jira":
+        secret = read_secret(settings.jira_token_file)
+        if not (settings.jira_url and settings.jira_email and secret):
+            raise ValueError("HUB_TICKETS=jira needs HUB_JIRA_URL, HUB_JIRA_EMAIL and HUB_JIRA_TOKEN_FILE")
+        return JiraTickets(settings.jira_url, settings.jira_email, secret.get_secret_value(), settings.jira_project)
+    token_secret = read_secret(settings.zammad_token_file)
+    if token_secret is None:
+        raise ValueError("HUB_ZAMMAD_TOKEN_FILE is not set")
+    return ZammadTickets(settings.zammad_url, token_secret.get_secret_value(), timeout=settings.http_timeout_seconds)
 
 
 def store(settings: Settings) -> Store:

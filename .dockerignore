@@ -1,0 +1,14 @@
+.venv
+.git
+.secrets
+.env
+.env.*
+data
+reports
+.ci
+.demo
+**/__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+infra/terraform/.terraform

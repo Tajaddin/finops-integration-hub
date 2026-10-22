@@ -53,6 +53,9 @@ class FakeCrm:
     def deals(self) -> Iterator[CrmDeal]:
         yield from self.deal_map.values()
 
+    def deal(self, deal_id: str) -> CrmDeal:
+        return self.deal_map[deal_id]
+
     def account(self, account_id: str) -> CrmAccount:
         return self.accounts[account_id]
 

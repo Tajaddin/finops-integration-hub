@@ -122,6 +122,46 @@ class SyncEngine:
         logger.info("sync_finished", crm=self.crm.name, **stats.summary())
         return stats
 
+    def sync_deals(self, deal_ids: list[str]) -> SyncStats:
+        """Process just these deals (named by a CRM webhook), under the same lock as a full run."""
+        stats = SyncStats()
+        started = time.perf_counter()
+        with self.store.lock(f"sync:{self.crm.name}"):
+            for deal_id in dict.fromkeys(deal_ids):
+                try:
+                    deal = self.crm.deal(deal_id)
+                except (PermanentError, ApiError) as exc:
+                    logger.warning("webhook_deal_unreadable", deal=deal_id, error=str(exc))
+                    continue
+                if not deal.is_won:
+                    continue
+                stats.seen += 1
+                self._one(deal, stats)
+            self.flush_writebacks(stats)
+        stats.customers_created = self.customers_created
+        stats.seconds = round(time.perf_counter() - started, 3)
+        return stats
+
+    def refresh_billing_status(self) -> dict[str, int]:
+        """Write the ERP's billing status (invoiced, partial, paid, overdue) back to every linked won deal whose CRM
+        value differs. Cancelled invoices are left to the reconciliation."""
+        invoices = {i.id: i for i in self.erp.invoices()}
+        links = self.store.links(self.crm.name)
+        checked = queued = 0
+        for deal in self.crm.won_deals(None):
+            link = links.get(deal.id)
+            invoice = invoices.get(link["erp_invoice_id"]) if link else None
+            if invoice is None or invoice.state == "cancel":
+                continue
+            checked += 1
+            status = invoice.billing_status
+            if deal.billing_status != status or deal.erp_invoice_ref != invoice.number:
+                self.store.queue_writeback(self.crm.name, deal.id, invoice.number, status.value, force=True)
+                queued += 1
+        stats = SyncStats()
+        self.flush_writebacks(stats)
+        return {"checked": checked, "queued": queued, "sent": stats.writebacks_sent, "failed": stats.writebacks_failed}
+
     def _one(self, deal: CrmDeal, stats: SyncStats) -> None:
         try:
             outcome = self.process(deal)

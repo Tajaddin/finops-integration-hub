@@ -41,10 +41,10 @@ jobs:
         with: { name: coverage, path: coverage.xml, retention-days: 14 }
 
   integration:
-    name: live Odoo and EspoCRM (compose)
+    name: live stack (Odoo, EspoCRM, Zammad, hub)
     runs-on: ubuntu-24.04
     env:
-      COMPOSE_PROFILES: core
+      COMPOSE_PROFILES: core,tickets
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -53,21 +53,41 @@ jobs:
       - name: local secrets and the stack
         run: |
           python3 scripts/make_env.py
-          chmod 777 .secrets   # odoo-init writes the API keys as the container's odoo user
-          docker compose up -d
-          bash scripts/wait_healthy.sh 900
-          sudo chown -R "$USER" .secrets
-      - name: bootstrap
+          chmod 777 .secrets   # the Odoo and Zammad bootstraps write keys as their containers' users
+          docker compose up -d --build
+          bash scripts/wait_healthy.sh 1200
+      - name: bootstrap EspoCRM (fields, role, API user, webhook to the hub)
         run: set -a && . ./.env && set +a && uv run hub migrate && uv run hub bootstrap espocrm
       - name: sync tests against the real systems
         run: set -a && . ./.env && set +a && uv run pytest -m integration -v
       - name: a seeded book end to end, twice
         run: |
           set -a && . ./.env && set +a
-          uv run hub seed --accounts 40 --seed 11 --out .ci/seed.json
-          uv run hub sync | tee .ci/sync-1.json
-          uv run hub sync | tee .ci/sync-2.json
+          mkdir -p .ci
+          uv run hub seed --accounts 60 --seed 11 --out .ci/seed.json
+          uv run hub sync > .ci/sync-1.json
+          uv run hub sync > .ci/sync-2.json
           python3 -c "import json; r = json.load(open('.ci/sync-2.json')); assert r['created'] == 0, r"
+      - name: a deal won in EspoCRM reaches Odoo through the signed webhook (before the hub is stopped below)
+        run: set -a && . ./.env && set +a && uv run python scripts/measure_webhook.py --samples 2 --out .ci/webhook.json
+      - name: reconciliation finds every injected fault and files each one ticket in Zammad
+        run: |
+          set -a && . ./.env && set +a
+          docker compose stop hub   # webhooks missed while the hub is down: the reconciliation has to catch them
+          uv run hub recon-eval --per-class 3 --book .ci/seed.json --out .ci/recon.json > /dev/null
+          python3 - <<'PY'
+          import json
+          r = json.load(open(".ci/recon.json"))
+          o = r["score"]["overall"]
+          assert o["precision"] == 1.0 and o["recall"] == 1.0, r["score"]
+          assert r["tickets_rerun"]["opened"] == 0, r["tickets_rerun"]
+          assert r["baseline"]["book_data_problems_all_found"], r["baseline"]
+          print(json.dumps({"score": o, "first": r["tickets_first_run"], "rerun": r["tickets_rerun"]}))
+          PY
+          docker compose start hub
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: integration-reports, path: .ci/, retention-days: 14 }
       - if: failure()
         run: docker compose logs --tail 200
 

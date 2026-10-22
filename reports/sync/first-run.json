@@ -1,0 +1,16 @@
+{
+  "command": "hub sync",
+  "book": "seed 42, 300 accounts",
+  "seen": 300,
+  "created": 286,
+  "linked": 0,
+  "unchanged": 0,
+  "skipped_cancelled": 0,
+  "customers_created": 185,
+  "dead_lettered": 14,
+  "writebacks_sent": 286,
+  "writebacks_failed": 0,
+  "seconds": 92.353,
+  "deal_ms_p50": 274.1,
+  "deal_ms_p95": 337.4
+}
