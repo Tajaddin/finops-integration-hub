@@ -68,6 +68,8 @@ jobs:
           uv run hub sync > .ci/sync-1.json
           uv run hub sync > .ci/sync-2.json
           python3 -c "import json; r = json.load(open('.ci/sync-2.json')); assert r['created'] == 0, r"
+      - name: a deal won in EspoCRM reaches Odoo through the signed webhook (before the hub is stopped below)
+        run: set -a && . ./.env && set +a && uv run python scripts/measure_webhook.py --samples 2 --out .ci/webhook.json
       - name: reconciliation finds every injected fault and files each one ticket in Zammad
         run: |
           set -a && . ./.env && set +a
@@ -83,8 +85,6 @@ jobs:
           print(json.dumps({"score": o, "first": r["tickets_first_run"], "rerun": r["tickets_rerun"]}))
           PY
           docker compose start hub
-      - name: a deal won in EspoCRM reaches Odoo through the signed webhook
-        run: set -a && . ./.env && set +a && uv run python scripts/measure_webhook.py --samples 2 --out .ci/webhook.json
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: integration-reports, path: .ci/, retention-days: 14 }
