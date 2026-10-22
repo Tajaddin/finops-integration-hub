@@ -1,0 +1,45 @@
+{
+  "what": "closed-won deals to posted Odoo invoices through the hub, a fresh book per run",
+  "setup": "one machine (i5-13600KF, Docker Desktop); Odoo 19 with 4 HTTP workers, EspoCRM 10, Postgres 17",
+  "runs": [
+    {
+      "workers": 1,
+      "book_seed": 1000,
+      "won_deals_in_book": 112,
+      "seen": 114,
+      "created": 110,
+      "dead_lettered": 2,
+      "seconds": 33.76,
+      "invoices_per_second": 3.26,
+      "deal_ms_p50": 253.2,
+      "deal_ms_p95": 345.4,
+      "rerun_created": 0
+    },
+    {
+      "workers": 4,
+      "book_seed": 1001,
+      "won_deals_in_book": 105,
+      "seen": 217,
+      "created": 98,
+      "dead_lettered": 9,
+      "seconds": 12.44,
+      "invoices_per_second": 7.88,
+      "deal_ms_p50": 31.5,
+      "deal_ms_p95": 341.7,
+      "rerun_created": 0
+    },
+    {
+      "workers": 8,
+      "book_seed": 1002,
+      "won_deals_in_book": 117,
+      "seen": 334,
+      "created": 116,
+      "dead_lettered": 10,
+      "seconds": 12.66,
+      "invoices_per_second": 9.17,
+      "deal_ms_p50": 28.1,
+      "deal_ms_p95": 519.4,
+      "rerun_created": 0
+    }
+  ]
+}

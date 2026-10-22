@@ -1,5 +1,5 @@
 .PHONY: help env install lint format typecheck test test-integration check secret-scan up down bootstrap seed sync \
-        logs ps backlog
+        logs ps backlog alerts-test dashboard tf-validate triage-index triage-eval recon-eval n8n-export
 
 COMPOSE ?= docker compose
 PROFILES ?= --profile core
@@ -59,3 +59,24 @@ logs:
 
 backlog:            ## issues, milestones and the board on GitHub from docs/agile/backlog.json
 	uv run python scripts/agile/sync_backlog.py --board && uv run python scripts/agile/board.py sprints
+
+alerts-test:        ## promtool unit tests for the alert rules
+	docker run --rm -v "$(CURDIR)/observability:/w" -w /w --entrypoint promtool prom/prometheus:v3.5.0 test rules alerts_test.yml
+
+dashboard:          ## regenerate the Grafana dashboard JSON
+	uv run python scripts/make_dashboard.py
+
+tf-validate:
+	terraform -chdir=infra/terraform fmt -check -recursive && terraform -chdir=infra/terraform init -backend=false -input=false && terraform -chdir=infra/terraform validate
+
+triage-index:       ## train the baseline, embed messages and help articles (needs Ollama)
+	uv run hub triage-index
+
+triage-eval:        ## the triage comparison and the agent on the challenge set (reports/triage/eval.json; ~35 min on an RTX 4060)
+	uv run hub triage-eval
+
+recon-eval:         ## the reconciliation scenario on the loaded book (reports/recon/eval.json)
+	uv run hub recon-eval
+
+n8n-export:         ## write the running n8n's workflows back into n8n/workflows
+	uv run python scripts/export_n8n.py

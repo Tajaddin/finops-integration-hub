@@ -1,6 +1,6 @@
 [project]
 name = "finops-integration-hub"
-version = "0.1.0"
+version = "1.0.0"
 description = "Order-to-cash integration for a finance-ops team: CRM to ERP sync, reconciliation, tickets, n8n workflows and an LLM triage agent with traces"
 readme = "README.md"
 license = "MIT"

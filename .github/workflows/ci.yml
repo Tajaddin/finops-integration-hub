@@ -98,6 +98,61 @@ jobs:
       - if: failure()
         run: docker compose logs --tail 200
 
+  observability:
+    name: alert rules (promtool) and dashboard
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: rules check and unit tests
+        run: |
+          docker run --rm -v "$PWD/observability:/w" -w /w --entrypoint promtool prom/prometheus:v3.5.0 check rules alert_rules.yml
+          docker run --rm -v "$PWD/observability:/w" -w /w --entrypoint promtool prom/prometheus:v3.5.0 test rules alerts_test.yml
+      - name: the committed dashboard is the generated one
+        run: python3 scripts/make_dashboard.py && git diff --exit-code -- observability/grafana
+
+  terraform:
+    name: Terraform fmt, validate, tflint, trivy
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.16.6" }
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false && terraform validate
+      - name: tflint
+        run: docker run --rm -v "$PWD:/data" -t ghcr.io/terraform-linters/tflint:v0.59.1 --chdir=/data
+      - name: trivy (misconfiguration)
+        run: docker run --rm -v "$PWD:/src" aquasec/trivy:0.67.2 config --exit-code 1 --severity HIGH,CRITICAL /src
+
+  image:
+    name: hub image build and scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f docker/hub.Dockerfile -t finops-integration-hub:ci .
+      - name: trivy (vulnerabilities with a fix)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.67.2 image \
+            --exit-code 1 --severity CRITICAL --ignore-unfixed finops-integration-hub:ci
+      - name: runs as a non-root user
+        run: test "$(docker inspect -f '{{.Config.User}}' finops-integration-hub:ci)" = "hub"
+
+  salesforce:
+    name: Salesforce metadata converts (sf CLI)
+    runs-on: ubuntu-24.04
+    env:
+      SF_DISABLE_TELEMETRY: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npx --yes @salesforce/cli@2 project convert source --root-dir force-app --output-dir "$RUNNER_TEMP/mdapi"
+        working-directory: salesforce
+      - run: test -f "$RUNNER_TEMP/mdapi/objects/Opportunity.object" && grep -c "<fullName>" "$RUNNER_TEMP/mdapi/objects/Opportunity.object"
+
   security:
     name: gitleaks and pip-audit
     runs-on: ubuntu-24.04

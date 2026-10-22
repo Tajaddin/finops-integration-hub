@@ -1,0 +1,11 @@
+{
+  "packageDirectories": [
+    {
+      "path": "force-app",
+      "default": true
+    }
+  ],
+  "name": "finops-integration-hub",
+  "namespace": "",
+  "sourceApiVersion": "66.0"
+}

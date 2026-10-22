@@ -1,0 +1,68 @@
+# Alert rules for the hub. Every rule has a runbook section in docs/RUNBOOK.md and a unit test in alerts_test.yml
+# (make alerts-test). Severity: page = someone acts now; ticket = someone acts today.
+groups:
+  - name: finops-hub
+    rules:
+      - alert: HubDown
+        expr: up{job="hub"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: The integration hub is not answering
+          description: Prometheus cannot scrape the hub; syncs, webhooks and triage are stopped.
+          runbook: docs/RUNBOOK.md#hubdown
+
+      - alert: SyncStale
+        # the gauge starts at the process start time, so a fresh process does not look an hour stale
+        expr: time() - hub_sync_last_success_timestamp_seconds > 3600
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: No successful CRM-to-ERP sync for over an hour
+          description: n8n runs the sync every 15 minutes; won deals are not being invoiced.
+          runbook: docs/RUNBOOK.md#syncstale
+
+      - alert: DeadLettersPilingUp
+        expr: hub_dead_letters_open > 20
+        for: 30m
+        labels: { severity: ticket }
+        annotations:
+          summary: "{{ $value }} won deals are waiting for a person to fix them"
+          description: Deals the sync could not invoice (bad data or a parked ERP error); `hub dead-letters` lists them.
+          runbook: docs/RUNBOOK.md#deadletterspilingup
+
+      - alert: MoneyMismatchFound
+        expr: max by (kind) (hub_recon_exceptions{kind=~"amount_mismatch|currency_mismatch|duplicate_invoice|orphan_invoice"}) > 0
+        labels: { severity: ticket }
+        annotations:
+          summary: "Reconciliation found {{ $value }} {{ $labels.kind }} exceptions"
+          description: An invoice disagrees with its deal on money; each has a ticket in the Billing queue.
+          runbook: docs/RUNBOOK.md#moneymismatchfound
+
+      - alert: WebhookSignatureFailures
+        expr: increase(hub_webhook_deliveries_total{result="bad_signature"}[10m]) > 5
+        labels: { severity: ticket }
+        annotations:
+          summary: CRM webhooks are failing signature checks
+          description: Either the webhook secret was rotated without re-running the bootstrap, or someone is posting forged deliveries.
+          runbook: docs/RUNBOOK.md#webhooksignaturefailures
+
+      - alert: TriageSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(hub_triage_seconds_bucket[10m]))) > 20
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: Triage p95 is above 20 s
+          description: The local model is slow or overloaded (GPU memory, another model resident); n8n retries will start timing out.
+          runbook: docs/RUNBOOK.md#triageslow
+
+      - alert: HubErrorRate
+        expr: >
+          sum(rate(hub_http_request_seconds_count{status=~"5.."}[5m]))
+          / sum(rate(hub_http_request_seconds_count[5m])) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: More than 5% of hub API calls fail
+          description: A dependency (Odoo, EspoCRM, Zammad, the model) is failing; the logs name it.
+          runbook: docs/RUNBOOK.md#huberrorrate

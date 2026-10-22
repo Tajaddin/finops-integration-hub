@@ -172,6 +172,21 @@
         80
       ],
       "parameters": {}
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify($('Sync').item.json) }}",
+        "options": {}
+      },
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000008",
+      "name": "Report the run",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        60
+      ]
     }
   ],
   "connections": {
@@ -227,6 +242,28 @@
         [
           {
             "node": "Nothing to fix",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tell finance ops: deals to fix": {
+      "main": [
+        [
+          {
+            "node": "Report the run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tell finance ops: sync failed": {
+      "main": [
+        [
+          {
+            "node": "Report the run",
             "type": "main",
             "index": 0
           }
