@@ -1,0 +1,85 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.10.4"
+
+jobs:
+  lint:
+    name: ruff and mypy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff check . && uv run ruff format --check .
+      - run: uv run mypy
+
+  test:
+    name: unit and contract tests (coverage)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest -m "not integration" --cov --cov-report=xml --cov-report=term
+      - uses: actions/upload-artifact@v4
+        with: { name: coverage, path: coverage.xml, retention-days: 14 }
+
+  integration:
+    name: live Odoo and EspoCRM (compose)
+    runs-on: ubuntu-24.04
+    env:
+      COMPOSE_PROFILES: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
+      - run: uv sync --locked --all-extras
+      - name: local secrets and the stack
+        run: |
+          python3 scripts/make_env.py
+          chmod 777 .secrets   # odoo-init writes the API keys as the container's odoo user
+          docker compose up -d
+          bash scripts/wait_healthy.sh 900
+          sudo chown -R "$USER" .secrets
+      - name: bootstrap
+        run: set -a && . ./.env && set +a && uv run hub migrate && uv run hub bootstrap espocrm
+      - name: sync tests against the real systems
+        run: set -a && . ./.env && set +a && uv run pytest -m integration -v
+      - name: a seeded book end to end, twice
+        run: |
+          set -a && . ./.env && set +a
+          uv run hub seed --accounts 40 --seed 11 --out .ci/seed.json
+          uv run hub sync | tee .ci/sync-1.json
+          uv run hub sync | tee .ci/sync-2.json
+          python3 -c "import json; r = json.load(open('.ci/sync-2.json')); assert r['created'] == 0, r"
+      - if: failure()
+        run: docker compose logs --tail 200
+
+  security:
+    name: gitleaks and pip-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks (history and tree)
+        run: bash scripts/secret_scan.sh
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
+      - run: uv sync --locked --all-extras
+      - run: uv run pip-audit --skip-editable --progress-spinner off
