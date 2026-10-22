@@ -35,9 +35,7 @@ def main() -> int:
         "-c",
         f"rm -rf {TMP} && mkdir -p {TMP} && n8n export:workflow --all --separate --output={TMP}/",
     )
-    names = [
-        n.strip() for n in compose("exec", "-T", "n8n", "ls", TMP).splitlines() if n.strip().endswith(".json")
-    ]
+    names = [n.strip() for n in compose("exec", "-T", "n8n", "ls", TMP).splitlines() if n.strip().endswith(".json")]
     for name in names:
         wf = json.loads(compose("exec", "-T", "n8n", "cat", f"{TMP}/{name}"))
         clean = {k: wf[k] for k in KEEP if k in wf}

@@ -167,3 +167,28 @@ def test_billing_status_refresh_writes_paid_back_to_the_crm(store: Store) -> Non
     out = engine(crm, erp, store).refresh_billing_status()
     assert out == {"checked": 3, "queued": 1, "sent": 1, "failed": 0}
     assert crm.writebacks[-1] == ("deal1", "INV/2026/00002", BillingStatus.PAID)
+
+
+@pytest.mark.parametrize("workers", [2, 8])
+def test_parallel_run_invoices_each_deal_once_and_each_account_gets_one_customer(store: Store, workers: int) -> None:
+    deals = [make_deal(i) for i in range(30)]  # three accounts, ten deals each
+    crm, erp = FakeCrm(deals), FakeErp()
+    stats = SyncEngine(crm, erp, store, workers=workers).run()
+    assert (stats.seen, stats.created) == (30, 30)
+    assert len(erp.invoice_rows) == 30 and stats.customers_created == 3
+    assert len({i.origin for i in erp.invoice_rows.values()}) == 30
+    again = SyncEngine(crm, erp, store, workers=workers).run(full=True)
+    assert (again.created, again.unchanged) == (0, 30)
+
+
+def test_parallel_crash_heals_on_the_next_run(store: Store) -> None:
+    crm, erp = FakeCrm([make_deal(i) for i in range(12)]), FakeErp()
+
+    def crash(step: str, deal: object) -> None:
+        if step == "before_record" and getattr(deal, "id", None) == "deal7":
+            raise Crash(step)
+
+    with pytest.raises(Crash):
+        SyncEngine(crm, erp, store, workers=4, on_step=crash).run()
+    SyncEngine(crm, erp, store, workers=4).run()
+    assert len(erp.invoice_rows) == 12 and len({i.origin for i in erp.invoice_rows.values()}) == 12

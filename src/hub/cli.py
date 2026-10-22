@@ -81,12 +81,16 @@ def seed(
 
 
 @app.command()
-def sync(full: Annotated[bool, typer.Option(help="ignore the cursor and look at every won deal")] = False) -> None:
+def sync(
+    full: Annotated[bool, typer.Option(help="ignore the cursor and look at every won deal")] = False,
+    workers: Annotated[int | None, typer.Option(min=1, max=16, help="default HUB_SYNC_WORKERS")] = None,
+) -> None:
     """Invoice every closed-won deal not invoiced yet; write invoice numbers back to the CRM."""
     from hub.sync.engine import SyncEngine
 
     settings = get_settings()
-    engine = SyncEngine(factory.crm(settings), factory.erp(settings), factory.store(settings))
+    n = workers or settings.sync_workers
+    engine = SyncEngine(factory.crm(settings), factory.erp(settings), factory.store(settings, pool=n + 1), workers=n)
     _print(engine.run(full=full).summary())
 
 
@@ -219,6 +223,41 @@ def triage_eval(
     }
     agent = {k: v for k, v in report["agent_on_challenge_set"].items() if k != "rows"}
     _print({"model": name, "accuracy": summary, "agent": agent})
+
+
+@app.command("triage-agent-eval")
+def triage_agent_eval(
+    model: Annotated[str | None, typer.Option(help="Ollama model; default HUB_TRIAGE_MODEL")] = None,
+    out: Annotated[Path, typer.Option()] = Path("reports/triage/agent-after-guards.json"),
+) -> None:
+    """The whole agent on the challenge set and on the held-out injection set (no classifier comparison)."""
+    import asyncio
+    import time
+
+    from hub.triage import eval as tev
+    from hub.triage import runtime
+
+    settings = get_settings()
+    name = model or settings.triage_model
+
+    async def run_all() -> dict[str, Any]:
+        workflow = runtime.workflow(settings, factory.erp(settings), model=name)
+        threshold = settings.refund_approval_threshold
+        return {
+            "model": name,
+            "hardware": "one workstation: RTX 4060 8 GB (Ollama), i5-13600KF",
+            "note": "the challenge set's c082-c090 shaped the guards (#23), so its injection result is not unbiased; "
+            "injection_holdout was written and committed before the guards ran on it",
+            "challenge_set": await tev.agent_on_challenge(workflow, tev.challenge_set(), threshold),
+            "injection_holdout": await tev.agent_on_challenge(workflow, tev.challenge_set(tev.HOLDOUT), threshold),
+        }
+
+    started = time.time()
+    report = asyncio.run(run_all())
+    report["minutes"] = round((time.time() - started) / 60, 1)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")
+    _print({k: {kk: vv for kk, vv in v.items() if kk != "rows"} for k, v in report.items() if isinstance(v, dict)})
 
 
 @app.command()

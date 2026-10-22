@@ -14,8 +14,10 @@ dead-letter table with the reason, and the run carries on. CRM write-backs go th
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -81,12 +83,15 @@ class SyncEngine:
         store: Store,
         *,
         overlap: timedelta = timedelta(minutes=5),
+        workers: int = 1,
         on_step: Callable[[str, CrmDeal], None] | None = None,
     ) -> None:
         self.crm = crm
         self.erp = erp
         self.store = store
         self.overlap = overlap
+        self.workers = max(1, workers)
+        self._lock = threading.Lock()
         self._accounts: dict[str, CrmAccount] = {}
         self.customers_created = 0
         self._customers: dict[str, ErpCustomer] = {}
@@ -103,14 +108,14 @@ class SyncEngine:
                 cursor = None if full else self.store.cursor(self.crm.name)
                 since = cursor - self.overlap if cursor else None
                 newest: datetime | None = None
-                for deal in self.crm.won_deals(since):
-                    stats.seen += 1
-                    t0 = time.perf_counter()
-                    self._one(deal, stats)
-                    stats.per_deal_ms.append((time.perf_counter() - t0) * 1000)
-                    newest = deal.modified_at if newest is None else max(newest, deal.modified_at)
-                    if stats.seen % 50 == 0 and newest is not None:
-                        self.store.set_cursor(self.crm.name, newest)
+                if self.workers == 1:
+                    for deal in self.crm.won_deals(since):
+                        self._timed(deal, stats)
+                        newest = deal.modified_at if newest is None else max(newest, deal.modified_at)
+                        if stats.seen % 50 == 0:
+                            self.store.set_cursor(self.crm.name, newest)
+                else:
+                    newest = self._parallel(list(self.crm.won_deals(since)), stats)
                 if newest is not None:
                     self.store.set_cursor(self.crm.name, newest)
                 self.flush_writebacks(stats)
@@ -121,6 +126,29 @@ class SyncEngine:
                 self.store.finish_run(run_id, status, stats.summary())
         logger.info("sync_finished", crm=self.crm.name, **stats.summary())
         return stats
+
+    def _timed(self, deal: CrmDeal, stats: SyncStats) -> None:
+        t0 = time.perf_counter()
+        self._one(deal, stats)
+        with self._lock:
+            stats.seen += 1
+            stats.per_deal_ms.append((time.perf_counter() - t0) * 1000)
+
+    def _parallel(self, deals: list[CrmDeal], stats: SyncStats) -> datetime | None:
+        """Deals of one account stay together on one thread, in order, so its ERP customer is looked up or created
+        once and never twice in a race; accounts run concurrently. The cursor moves only after every deal of the
+        run is done (or dead-lettered): a crash part-way re-reads from the old cursor, harmless by ADR 0003."""
+        by_account: dict[str, list[CrmDeal]] = {}
+        for deal in deals:
+            by_account.setdefault(deal.account_id, []).append(deal)
+        with ThreadPoolExecutor(max_workers=self.workers, thread_name_prefix="sync") as pool:
+            for future in [pool.submit(self._account_group, group, stats) for group in by_account.values()]:
+                future.result()  # re-raises a crash in any worker
+        return max((d.modified_at for d in deals), default=None)
+
+    def _account_group(self, group: list[CrmDeal], stats: SyncStats) -> None:
+        for deal in group:
+            self._timed(deal, stats)
 
     def sync_deals(self, deal_ids: list[str]) -> SyncStats:
         """Process just these deals (named by a CRM webhook), under the same lock as a full run."""
@@ -135,8 +163,7 @@ class SyncEngine:
                     continue
                 if not deal.is_won:
                     continue
-                stats.seen += 1
-                self._one(deal, stats)
+                self._timed(deal, stats)
             self.flush_writebacks(stats)
         stats.customers_created = self.customers_created
         stats.seconds = round(time.perf_counter() - started, 3)
@@ -167,7 +194,8 @@ class SyncEngine:
             outcome = self.process(deal)
         except PermanentError as exc:
             self.store.dead_letter(self.crm.name, deal.id, "permanent", str(exc))
-            stats.dead_lettered += 1
+            with self._lock:
+                stats.dead_lettered += 1
             logger.warning("deal_dead_lettered", deal=deal.id, reason=str(exc))
             return
         except ApiError as exc:
@@ -175,10 +203,12 @@ class SyncEngine:
                 self.store.dead_letter(self.crm.name, deal.id, "permanent", str(exc))
             else:  # retried at the HTTP layer already; park it and let the next run (or a replay) try again
                 self.store.dead_letter(self.crm.name, deal.id, "transient", str(exc))
-            stats.dead_lettered += 1
+            with self._lock:
+                stats.dead_lettered += 1
             logger.warning("deal_dead_lettered", deal=deal.id, reason=str(exc), status=exc.status)
             return
-        setattr(stats, outcome, getattr(stats, outcome) + 1)
+        with self._lock:
+            setattr(stats, outcome, getattr(stats, outcome) + 1)
 
     def process(self, deal: CrmDeal) -> str:
         """One deal. Returns created | linked | unchanged | skipped_cancelled."""
@@ -221,7 +251,8 @@ class SyncEngine:
         customer = self.erp.find_customer(account_ref, normalise_domain(account.website))
         if customer is None:
             customer = self.erp.create_customer(account, account_ref)
-            self.customers_created += 1
+            with self._lock:
+                self.customers_created += 1
         self._customers[account_ref] = customer
         return customer
 

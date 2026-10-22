@@ -75,5 +75,5 @@ def tickets(settings: Settings) -> TicketSink | None:
     return ZammadTickets(settings.zammad_url, token_secret.get_secret_value(), timeout=settings.http_timeout_seconds)
 
 
-def store(settings: Settings) -> Store:
-    return Store(settings.database_url.get_secret_value())
+def store(settings: Settings, pool: int = 4) -> Store:
+    return Store(settings.database_url.get_secret_value(), max_size=pool)
