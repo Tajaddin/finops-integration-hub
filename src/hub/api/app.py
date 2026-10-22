@@ -32,7 +32,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
-from hub import log, metrics
+from hub import log, metrics, tracing
 from hub.api.security import ApiKeyCheck, WebhookSecret, verify_espocrm
 from hub.config import Settings
 from hub.connectors.base import CrmSource, ErpSink
@@ -84,7 +84,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
         deps = Deps(
             crm=lambda: factory.crm(settings),
             erp=lambda: factory.erp(settings),
-            store=factory.store(settings),
+            store=factory.store(settings, pool=settings.sync_workers + 4),
             tickets=lambda: factory.tickets(settings),
             triage=triage_workflow,
         )
@@ -149,7 +149,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     @app.post("/v1/sync/runs", dependencies=authed)
     @limiter.limit("6/minute")
     def sync_run(request: Request, full: bool = False) -> dict[str, Any]:
-        engine = SyncEngine(deps.crm(), deps.erp(), deps.store)
+        engine = SyncEngine(deps.crm(), deps.erp(), deps.store, workers=settings.sync_workers)
         try:
             summary = engine.run(full=full).summary()
         except AlreadyRunning as exc:
@@ -195,7 +195,28 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             raise HTTPException(503, "triage is not configured")
         if idempotency_key and (seen := deps.store.triage_by_key(idempotency_key)) is not None:
             return _triage_answer(seen["id"], seen["result"], seen["ticket_ref"], replay=True)
-        result = await triage(deps.triage(), body.message)
+        langfuse = tracing.setup(settings)
+        if langfuse is None:
+            result = await triage(deps.triage(), body.message)
+        else:  # one trace per turn; LlamaIndex's retrieval and LLM calls nest under it (OpenInference)
+            from langfuse import propagate_attributes
+
+            with (
+                langfuse.start_as_current_observation(
+                    name="triage", as_type="agent", input={"message": body.message}
+                ) as span,
+                propagate_attributes(user_id=tracing.sender_id(str(body.sender)), trace_name="triage", tags=["triage"]),
+            ):
+                result = await triage(deps.triage(), body.message)
+                span.update(
+                    output={
+                        "intent": result.intent,
+                        "queue": result.queue,
+                        "needs_approval": result.needs_approval,
+                        "reply": result.reply,
+                    },
+                    metadata={"path": result.path, "citations": result.citations, "replaced": result.reply_replaced},
+                )
         data = result.as_dict()
         run_id = deps.store.save_triage(body.sender, body.message, data, idempotency_key)
         metrics.TRIAGE.labels(result.queue, "needs_approval" if result.needs_approval else "routed").inc()
@@ -207,6 +228,8 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             tags = ["triage", result.intent or "unclassified"] + (
                 ["awaiting-approval"] if result.needs_approval else []
             )
+            if result.suspected_injection:
+                tags.append("suspected-injection")
             ticket = sink.open(
                 title, body.message, queue=result.queue, priority=result.priority, tags=tags, customer=str(body.sender)
             )
