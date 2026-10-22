@@ -8,7 +8,8 @@ timeout=${1:-600}
 deadline=$((SECONDS + timeout))
 while :; do
   pending=0
-  while IFS=$'\t' read -r name state health exit_code; do
+  # '|' and not a tab: with IFS set to whitespace, an empty Health field would collapse and shift ExitCode
+  while IFS='|' read -r name state health exit_code; do
     case "$state" in
       exited)
         if [ "$exit_code" != "0" ]; then
@@ -18,9 +19,9 @@ while :; do
         if [ -n "$health" ] && [ "$health" != "healthy" ]; then pending=1; fi ;;
       *) pending=1 ;;
     esac
-  done < <(docker compose ps -a --format '{{.Name}}\t{{.State}}\t{{.Health}}\t{{.ExitCode}}')
+  done < <(docker compose ps -a --format '{{.Name}}|{{.State}}|{{.Health}}|{{.ExitCode}}')
   if [ "$pending" = 0 ]; then
-    docker compose ps -a --format '{{.Name}}\t{{.Status}}'
+    docker compose ps -a --format '{{.Name}}  {{.Status}}'
     exit 0
   fi
   if [ "$SECONDS" -ge "$deadline" ]; then
