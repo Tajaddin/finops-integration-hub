@@ -171,6 +171,7 @@ def triage_eval(
 ) -> None:
     """Compare TF-IDF, zero-shot, retrieval few-shot and the cascade on the Bitext sample and the challenge set,
     then run the whole agent on the challenge set."""
+    import asyncio
     import time
 
     from hub.triage import eval as tev
@@ -193,16 +194,22 @@ def triage_eval(
             sys.stderr.write(f"{label}: {i}\n")
 
     started = time.time()
-    report: dict[str, Any] = {
-        "model": name,
-        "embedding_model": settings.embed_model,
-        "hardware": "one workstation: RTX 4060 8 GB (Ollama), i5-13600KF",
-        "train_messages": len(train),
-        "bitext_sample": tev.compare("bitext", bitext, baseline, zero, few, progress=progress),
-        "challenge_set": tev.compare("challenge", challenge, baseline, zero, few, progress=progress),
-    }
-    workflow = runtime.workflow(settings, factory.erp(settings), model=name)
-    report["agent_on_challenge_set"] = tev.agent_on_challenge(workflow, challenge, settings.refund_approval_threshold)
+
+    async def run_all() -> dict[str, Any]:
+        workflow = runtime.workflow(settings, factory.erp(settings), model=name)
+        return {
+            "model": name,
+            "embedding_model": settings.embed_model,
+            "hardware": "one workstation: RTX 4060 8 GB (Ollama), i5-13600KF",
+            "train_messages": len(train),
+            "bitext_sample": await tev.compare("bitext", bitext, baseline, zero, few, progress=progress),
+            "challenge_set": await tev.compare("challenge", challenge, baseline, zero, few, progress=progress),
+            "agent_on_challenge_set": await tev.agent_on_challenge(
+                workflow, challenge, settings.refund_approval_threshold
+            ),
+        }
+
+    report = asyncio.run(run_all())
     report["minutes"] = round((time.time() - started) / 60, 1)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")

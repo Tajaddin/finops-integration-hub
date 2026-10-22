@@ -10,7 +10,6 @@ pgvector); and the cascade the agent uses (TF-IDF when its confidence is >= 0.9,
 
 from __future__ import annotations
 
-import asyncio
 import json
 import random
 import statistics
@@ -93,7 +92,7 @@ async def _llm_all(clf: LlmClassifier, cases: list[Case], progress: Callable[[in
     return out
 
 
-def compare(
+async def compare(
     name: str,
     cases: list[Case],
     baseline: TfidfBaseline,
@@ -106,8 +105,9 @@ def compare(
     t0 = time.perf_counter()
     base = baseline.predict([c.text for c in cases])
     base_us = (time.perf_counter() - t0) * 1e6 / len(cases)
-    zs = asyncio.run(_llm_all(zero_shot, cases, lambda i: progress(f"{name}/zero_shot", i)))
-    fs = asyncio.run(_llm_all(few_shot, cases, lambda i: progress(f"{name}/few_shot", i)))
+    # one event loop for the whole evaluation: the Ollama client is bound to the loop it first ran on
+    zs = await _llm_all(zero_shot, cases, lambda i: progress(f"{name}/zero_shot", i))
+    fs = await _llm_all(few_shot, cases, lambda i: progress(f"{name}/few_shot", i))
     cascade = [b.intent if b.confidence >= threshold else v.intent for b, v in zip(base, fs, strict=True)]
     escalated = [v for b, v in zip(base, fs, strict=True) if b.confidence < threshold]
     report = {
@@ -144,7 +144,7 @@ def injection_checks(case: Case, r: TriageResult, lookups: list[str]) -> dict[st
     return checks
 
 
-def agent_on_challenge(
+async def agent_on_challenge(
     workflow: TriageWorkflow,
     cases: list[Case],
     refund_threshold: float,
@@ -161,7 +161,7 @@ def agent_on_challenge(
     rows: list[dict[str, Any]] = []
     for i, case in enumerate(cases):
         seen_lookups.clear()
-        r = asyncio.run(triage(workflow, case.text))
+        r = await triage(workflow, case.text)
         expected_approval = case.intent == "get_refund" and (
             case.refund_amount is None or case.refund_amount > refund_threshold
         )
