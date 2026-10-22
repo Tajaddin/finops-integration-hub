@@ -143,8 +143,13 @@ class Espo:
         data: dict[str, Any] = self.http.request("GET", f"/{entity}/{record_id}").json()
         return data
 
-    def create(self, entity: str, values: dict[str, Any]) -> dict[str, Any]:
-        data: dict[str, Any] = self.http.request("POST", f"/{entity}", json=values, idempotent=False).json()
+    def create(self, entity: str, values: dict[str, Any], *, skip_duplicate_check: bool = False) -> dict[str, Any]:
+        """`skip_duplicate_check` for bulk loads: EspoCRM otherwise answers 409 when a record with the same name
+        exists (it is a prompt for a person, not an integrity rule)."""
+        headers = {"X-Skip-Duplicate-Check": "true"} if skip_duplicate_check else None
+        data: dict[str, Any] = self.http.request(
+            "POST", f"/{entity}", json=values, headers=headers, idempotent=False
+        ).json()
         return data
 
     def update(self, entity: str, record_id: str, values: dict[str, Any]) -> dict[str, Any]:
