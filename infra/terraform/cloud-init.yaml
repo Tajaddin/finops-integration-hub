@@ -1,0 +1,49 @@
+#cloud-config
+# Installs Docker and Ollama (CPU), clones the repository at the given ref, generates every secret on the VM and
+# starts the stack. With a webhook domain, Caddy terminates TLS and forwards only /webhooks/espocrm (to the hub)
+# and /webhook/billing-message (to n8n); everything else stays on 127.0.0.1.
+package_update: true
+packages: [ca-certificates, curl, gnupg, git, make, python3]
+write_files:
+  # the hub container reaches Ollama through the docker bridge; the VM's security list keeps 11434 closed outside
+  - path: /etc/systemd/system/ollama.service.d/listen.conf
+    permissions: "0644"
+    content: |
+      [Service]
+      Environment="OLLAMA_HOST=0.0.0.0:11434"
+  - path: /etc/caddy/Caddyfile
+    permissions: "0644"
+    content: |
+      %{ if webhook_domain != "" }${webhook_domain} {
+        handle /webhooks/espocrm { reverse_proxy 127.0.0.1:8000 }
+        handle /webhook/billing-message { reverse_proxy 127.0.0.1:5678 }
+        handle { respond 404 }
+      }%{ else }:9 {
+        respond 404
+      }%{ endif }
+runcmd:
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - usermod -aG docker ubuntu
+  - curl -fsSL https://ollama.com/install.sh | sh
+  - systemctl daemon-reload && systemctl restart ollama
+  - sudo -u ubuntu ollama pull ${triage_model} || true
+  - sudo -u ubuntu ollama pull nomic-embed-text || true
+  - git clone --depth 1 --branch ${git_ref} ${repo_url} /opt/finops
+  - chown -R ubuntu:ubuntu /opt/finops
+  - cd /opt/finops && sudo -u ubuntu python3 scripts/make_env.py
+  - cd /opt/finops && sudo -u ubuntu sed -i 's/^HUB_TRIAGE_MODEL=.*/HUB_TRIAGE_MODEL=${triage_model}/' .env
+  - cd /opt/finops && mkdir -p data/triage && chmod 777 data/triage .secrets
+  - cd /opt/finops && sudo -u ubuntu COMPOSE_PROFILES=core,tickets,automation,llm,obs docker compose up -d --wait --wait-timeout 1200
+  # one-time setup inside the hub image (it carries the CLI): migrations, EspoCRM's fields, role, API user and
+  # webhook, and the triage baseline and indexes (downloads the Bitext set once)
+  - >-
+    cd /opt/finops && sudo -u ubuntu sh -c 'set -a; . ./.env; set +a;
+    COMPOSE_PROFILES=core docker compose run --rm --no-deps -e HF_HUB_OFFLINE=0 -e ESPOCRM_ADMIN_PASSWORD
+    -v /opt/finops/data/triage:/app/data/triage -v /opt/finops/.secrets:/secrets
+    hub sh -c "hub migrate && hub bootstrap espocrm && hub triage-index"'
+  - cd /opt/finops && sudo -u ubuntu COMPOSE_PROFILES=core docker compose restart hub
+  - "%{ if webhook_domain != "" }apt-get install -y caddy && systemctl enable --now caddy%{ else }true%{ endif }"
