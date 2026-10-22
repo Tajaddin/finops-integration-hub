@@ -1,3 +1,9 @@
 # gitleaks: the default rules. Allowlist only what is provably not a secret.
 [extend]
 useDefault = true
+
+[[allowlists]]
+description = "EspoCRM record ids (17 hex characters) under a JSON \"key\" field in committed result files"
+condition = "AND"
+paths = ['''(^|/)reports/.*\.json$''']
+regexes = ['''^[0-9a-f]{17}$''']
