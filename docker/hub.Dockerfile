@@ -14,9 +14,10 @@ FROM python:3.12.12-slim
 RUN useradd --system --uid 10001 --no-create-home hub
 WORKDIR /app
 COPY --from=build --chown=hub:hub /app /app
-ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1
+COPY --chmod=0755 docker/hub-start.sh /usr/local/bin/hub-start
+ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
 USER hub
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --retries=10 \
   CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
-CMD ["uvicorn", "hub.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--no-access-log"]
+CMD ["hub-start"]

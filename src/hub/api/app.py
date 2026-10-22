@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, Response
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST
 from pydantic import BaseModel, EmailStr, Field
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -144,7 +144,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             metrics.DEAD_LETTERS_OPEN.set(len(deps.store.open_dead_letters(settings.crm)))
         except Exception:  # the scrape must not fail because the database blinked
             logger.warning("metrics_dead_letters_unavailable")
-        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+        return Response(metrics.exposition(), media_type=CONTENT_TYPE_LATEST)
 
     @app.post("/v1/sync/runs", dependencies=authed)
     @limiter.limit("6/minute")
