@@ -1,0 +1,239 @@
+{
+  "id": "finopsSync000001",
+  "name": "CRM to ERP sync every 15 minutes",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000001",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000002",
+      "name": "Run now (webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "0b7f8a52-6e1d-4f6b-9b55-1a0d7f2a5e01",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "run-sync",
+        "responseMode": "lastNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "n8nWebhookKey001",
+          "name": "Webhook key"
+        }
+      }
+    },
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000003",
+      "name": "Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        100
+      ],
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubApiKey0000001",
+          "name": "Hub API key"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "http://hub:8000/v1/sync/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000004",
+      "name": "Any dead letters?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c3a0b8d2-0001-4f00-8000-000000000001",
+              "leftValue": "={{ $json.dead_lettered }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000005",
+      "name": "Tell finance ops: deals to fix",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        780,
+        -80
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "mailpitSmtp00001",
+          "name": "Mailpit SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "integration-hub@ledgerline.example",
+        "toEmail": "finance-ops@ledgerline.example",
+        "subject": "={{ $json.dead_lettered }} won deals could not be invoiced",
+        "emailFormat": "text",
+        "text": "=The CRM-to-ERP sync ran: {{ $json.created }} invoices created, {{ $json.unchanged }} already invoiced, {{ $json.dead_lettered }} deals need a person to fix them in the CRM.\n\nThe reasons are in the hub (hub dead-letters) and on the reconciliation tickets.",
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000006",
+      "name": "Tell finance ops: sync failed",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        520,
+        220
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "mailpitSmtp00001",
+          "name": "Mailpit SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "integration-hub@ledgerline.example",
+        "toEmail": "finance-ops@ledgerline.example",
+        "subject": "CRM-to-ERP sync failed",
+        "emailFormat": "text",
+        "text": "=The scheduled sync did not complete: {{ $json.error ? ($json.error.message || JSON.stringify($json.error)) : 'no response' }}. It will run again in 15 minutes; if it keeps failing, see docs/RUNBOOK.md.",
+        "options": {}
+      }
+    },
+    {
+      "id": "6f1c2e10-0001-4c1a-9b10-000000000007",
+      "name": "Nothing to fix",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        780,
+        80
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now (webhook)": {
+      "main": [
+        [
+          {
+            "node": "Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync": {
+      "main": [
+        [
+          {
+            "node": "Any dead letters?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tell finance ops: sync failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any dead letters?": {
+      "main": [
+        [
+          {
+            "node": "Tell finance ops: deals to fix",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing to fix",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}

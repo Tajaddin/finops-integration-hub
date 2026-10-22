@@ -1,0 +1,42 @@
+{
+  "what": "n8n workflows driven through their webhooks; counts and durations from n8n's execution_entity",
+  "setup": "local Docker stack on one machine, n8n 2.45.1, Postgres-backed",
+  "triage_model": "fake",
+  "billing_messages_sent": 110,
+  "webhook_status_codes": {
+    "202": 110
+  },
+  "approval_links_followed": 11,
+  "triage_decisions": {
+    "None": 99,
+    "approved": 6,
+    "rejected": 5
+  },
+  "seconds": 54.0,
+  "workflows": {
+    "Billing message intake with refund approval": {
+      "runs": 110,
+      "by_status": {
+        "success": 110
+      },
+      "ms_p50": 261.0,
+      "ms_p95": 13658.0
+    },
+    "CRM to ERP sync every 15 minutes": {
+      "runs": 3,
+      "by_status": {
+        "success": 3
+      },
+      "ms_p50": 140.0,
+      "ms_p95": 154.0
+    },
+    "Nightly reconciliation and billing status": {
+      "runs": 2,
+      "by_status": {
+        "success": 2
+      },
+      "ms_p50": 2220.5,
+      "ms_p95": 2402.0
+    }
+  }
+}

@@ -68,6 +68,7 @@ class Settings(BaseSettings):
 
     # sync tuning
     sync_page_size: int = Field(default=100, ge=1, le=200)
+    sync_workers: int = Field(default=4, ge=1, le=16, description="accounts processed at once (ADR 0003)")
     sync_overlap_seconds: int = Field(default=300, ge=0, description="re-read window behind the cursor")
     http_timeout_seconds: float = Field(default=20.0, gt=0)
     http_retries: int = Field(default=4, ge=0, le=10)

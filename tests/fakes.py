@@ -3,6 +3,7 @@ source document, can be told to fail a create after "applying" it, and counts ev
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
@@ -74,9 +75,11 @@ class FakeErp:
         self.calls: dict[str, int] = {}
         self.ambiguous_creates = 0  # the next N creates are applied, then the response is "lost"
         self.fail_creates_with: ApiError | None = None
+        self._lock = threading.Lock()
 
     def _count(self, name: str) -> None:
-        self.calls[name] = self.calls.get(name, 0) + 1
+        with self._lock:
+            self.calls[name] = self.calls.get(name, 0) + 1
 
     def find_customer(self, crm_ref: str, domain: str | None) -> ErpCustomer | None:
         self._count("find_customer")
@@ -87,8 +90,9 @@ class FakeErp:
 
     def create_customer(self, account: CrmAccount, crm_ref: str) -> ErpCustomer:
         self._count("create_customer")
-        c = ErpCustomer(len(self.customer_rows) + 1, account.name, crm_ref, account.website)
-        self.customer_rows[c.id] = c
+        with self._lock:
+            c = ErpCustomer(len(self.customer_rows) + 1, account.name, crm_ref, account.website)
+            self.customer_rows[c.id] = c
         return c
 
     def find_invoices(self, origin: str) -> list[ErpInvoice]:
@@ -99,8 +103,11 @@ class FakeErp:
         self._count("create_invoice")
         if self.fail_creates_with:
             raise self.fail_creates_with
+        with self._lock:
+            new_id = len(self.invoice_rows) + 1
+            self.invoice_rows[new_id] = None  # type: ignore[assignment]  # reserve the id
         inv = ErpInvoice(
-            id=len(self.invoice_rows) + 1,
+            id=new_id,
             number=None,
             partner_id=customer.id,
             origin=origin,

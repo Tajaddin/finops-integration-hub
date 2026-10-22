@@ -102,3 +102,45 @@ def test_signature_matches_espocrms_php_example() -> None:
     assert sig == "NmFkOTo4Y2YzZDU4NGJhYzQyMDcwZTQ0ZjI0OWE1NTA5MTBiZDAwNzdkMThhOWNjNjJhNTRjNTljNjc1ODQ1OGJmMDFh"
     assert verify_espocrm(sig, b"[]", WebhookSecret("6ad9", "key"))
     assert not verify_espocrm(sig, b"[ ]", WebhookSecret("6ad9", "key"))
+
+
+class FakeTriage:
+    """Stands in for the TriageWorkflow: counts runs, answers a held refund."""
+
+    def __init__(self) -> None:
+        self.runs = 0
+
+    async def run(self, message: str) -> object:
+        from hub.triage.workflow import TriageResult
+
+        self.runs += 1
+        return TriageResult(
+            "get_refund", "REFUND", "Billing", "high", "baseline", 0.99, 4800.0, True, reply="Passed to finance."
+        )
+
+
+def test_triage_is_idempotent_per_key_and_decisions_are_recorded_once(store: Store, tmp_path: Path) -> None:
+    settings = Settings(api_key=SecretStr(KEY), _env_file=None)  # type: ignore[call-arg]
+    fake = FakeTriage()
+    app = create_app(
+        settings, Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=store, tickets=lambda: None, triage=lambda: fake)
+    )
+    client = TestClient(app)
+    h = {"X-API-Key": KEY, "Idempotency-Key": "n8n-42"}
+    body = {"message": "refund $4,800.00 please", "sender": "a@example.com"}
+    first = client.post("/v1/triage", json=body, headers=h).json()
+    again = client.post("/v1/triage", json=body, headers=h).json()
+    assert fake.runs == 1, "a retry with the same key must not triage (or file a ticket) twice"
+    assert again["replay"] is True and again["id"] == first["id"] and first["needs_approval"] is True
+    assert (
+        client.post(
+            "/v1/triage", json={"message": "x", "sender": "not-an-email"}, headers={"X-API-Key": KEY}
+        ).status_code
+        == 422
+    )
+    decide = {"approved": True, "by": "controller"}
+    assert (
+        client.post(f"/v1/triage/{first['id']}/decision", json=decide, headers={"X-API-Key": KEY}).json()["decision"]
+        == "approved"
+    )
+    assert client.post(f"/v1/triage/{first['id']}/decision", json=decide, headers={"X-API-Key": KEY}).status_code == 409

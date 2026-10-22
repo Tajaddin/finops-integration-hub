@@ -16,7 +16,15 @@ class Ticket:
 class TicketSink(Protocol):
     name: str
 
-    def open(self, title: str, body: str, *, queue: str, priority: str, tags: list[str]) -> Ticket: ...
+    def open(
+        self, title: str, body: str, *, queue: str, priority: str, tags: list[str], customer: str | None = None
+    ) -> Ticket:
+        """`customer`: the e-mail the ticket is for (Zammad files it on that customer; the others ignore it)."""
+        ...
+
+    def note(self, ticket_id: str, body: str) -> None:
+        """An internal note or comment on the ticket."""
+        ...
 
     def close(self, ticket_id: str, note: str) -> None: ...
 

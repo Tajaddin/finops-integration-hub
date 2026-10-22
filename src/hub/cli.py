@@ -81,12 +81,16 @@ def seed(
 
 
 @app.command()
-def sync(full: Annotated[bool, typer.Option(help="ignore the cursor and look at every won deal")] = False) -> None:
+def sync(
+    full: Annotated[bool, typer.Option(help="ignore the cursor and look at every won deal")] = False,
+    workers: Annotated[int | None, typer.Option(min=1, max=16, help="default HUB_SYNC_WORKERS")] = None,
+) -> None:
     """Invoice every closed-won deal not invoiced yet; write invoice numbers back to the CRM."""
     from hub.sync.engine import SyncEngine
 
     settings = get_settings()
-    engine = SyncEngine(factory.crm(settings), factory.erp(settings), factory.store(settings))
+    n = workers or settings.sync_workers
+    engine = SyncEngine(factory.crm(settings), factory.erp(settings), factory.store(settings, pool=n + 1), workers=n)
     _print(engine.run(full=full).summary())
 
 
@@ -147,6 +151,113 @@ def recon_eval(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")
     _print({k: report[k] for k in ("injected", "score", "tickets_first_run", "tickets_rerun", "after_repair")})
+
+
+@app.command("triage-index")
+def triage_index(
+    embed: Annotated[
+        bool, typer.Option(help="also embed into pgvector (needs Ollama); off for the CI stand-in")
+    ] = True,
+) -> None:
+    """Train the TF-IDF baseline and embed the training messages and help-centre articles into pgvector."""
+    from hub.triage import runtime
+
+    settings = get_settings()
+    runtime.train_baseline()
+    _print(runtime.build_indexes(settings) if embed else {"baseline": str(runtime.BASELINE)})
+
+
+@app.command("triage-eval")
+def triage_eval(
+    model: Annotated[str | None, typer.Option(help="Ollama model; default HUB_TRIAGE_MODEL")] = None,
+    per_intent: Annotated[int, typer.Option(min=1, max=200)] = 40,
+    out: Annotated[Path, typer.Option()] = Path("reports/triage/eval.json"),
+) -> None:
+    """Compare TF-IDF, zero-shot, retrieval few-shot and the cascade on the Bitext sample and the challenge set,
+    then run the whole agent on the challenge set."""
+    import asyncio
+    import time
+
+    from hub.triage import eval as tev
+    from hub.triage import runtime
+    from hub.triage.data import eval_sample, messages, split
+    from hub.triage.llm import LlmClassifier
+
+    settings = get_settings()
+    name = model or settings.triage_model
+    train, test = split(messages())
+    bitext = tev.as_cases(eval_sample(test, per_intent=per_intent))
+    challenge = tev.challenge_set()
+    baseline = runtime.load_baseline()
+    the_llm = runtime.llm(settings, name)
+    examples, _kb = runtime.retrievers(settings)
+    zero, few = LlmClassifier(the_llm), LlmClassifier(the_llm, examples)
+
+    def progress(label: str, i: int) -> None:
+        if i % 100 == 0:
+            sys.stderr.write(f"{label}: {i}\n")
+
+    started = time.time()
+
+    async def run_all() -> dict[str, Any]:
+        workflow = runtime.workflow(settings, factory.erp(settings), model=name)
+        return {
+            "model": name,
+            "embedding_model": settings.embed_model,
+            "hardware": "one workstation: RTX 4060 8 GB (Ollama), i5-13600KF",
+            "train_messages": len(train),
+            "bitext_sample": await tev.compare("bitext", bitext, baseline, zero, few, progress=progress),
+            "challenge_set": await tev.compare("challenge", challenge, baseline, zero, few, progress=progress),
+            "agent_on_challenge_set": await tev.agent_on_challenge(
+                workflow, challenge, settings.refund_approval_threshold
+            ),
+        }
+
+    report = asyncio.run(run_all())
+    report["minutes"] = round((time.time() - started) / 60, 1)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")
+    summary = {
+        k: {a: v.get("intent_accuracy") for a, v in report[k].items() if isinstance(v, dict)}
+        for k in ("bitext_sample", "challenge_set")
+    }
+    agent = {k: v for k, v in report["agent_on_challenge_set"].items() if k != "rows"}
+    _print({"model": name, "accuracy": summary, "agent": agent})
+
+
+@app.command("triage-agent-eval")
+def triage_agent_eval(
+    model: Annotated[str | None, typer.Option(help="Ollama model; default HUB_TRIAGE_MODEL")] = None,
+    out: Annotated[Path, typer.Option()] = Path("reports/triage/agent-after-guards.json"),
+) -> None:
+    """The whole agent on the challenge set and on the held-out injection set (no classifier comparison)."""
+    import asyncio
+    import time
+
+    from hub.triage import eval as tev
+    from hub.triage import runtime
+
+    settings = get_settings()
+    name = model or settings.triage_model
+
+    async def run_all() -> dict[str, Any]:
+        workflow = runtime.workflow(settings, factory.erp(settings), model=name)
+        threshold = settings.refund_approval_threshold
+        return {
+            "model": name,
+            "hardware": "one workstation: RTX 4060 8 GB (Ollama), i5-13600KF",
+            "note": "the challenge set's c082-c090 shaped the guards (#23), so its injection result is not unbiased; "
+            "injection_holdout was written and committed before the guards ran on it",
+            "challenge_set": await tev.agent_on_challenge(workflow, tev.challenge_set(), threshold),
+            "injection_holdout": await tev.agent_on_challenge(workflow, tev.challenge_set(tev.HOLDOUT), threshold),
+        }
+
+    started = time.time()
+    report = asyncio.run(run_all())
+    report["minutes"] = round((time.time() - started) / 60, 1)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")
+    _print({k: {kk: vv for kk, vv in v.items() if kk != "rows"} for k, v in report.items() if isinstance(v, dict)})
 
 
 @app.command()

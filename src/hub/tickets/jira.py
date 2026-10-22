@@ -44,7 +44,9 @@ class JiraTickets:
         headers = {"Authorization": f"Basic {basic}", "Accept": "application/json", "Content-Type": "application/json"}
         self.http = Http("jira", self.url, headers, timeout, retries, transport=transport)
 
-    def open(self, title: str, body: str, *, queue: str, priority: str, tags: list[str]) -> Ticket:
+    def open(
+        self, title: str, body: str, *, queue: str, priority: str, tags: list[str], customer: str | None = None
+    ) -> Ticket:
         fields = {
             "project": {"key": self.project},
             "issuetype": {"name": "Task"},
@@ -55,6 +57,9 @@ class JiraTickets:
         }
         data = self.http.request("POST", "/rest/api/3/issue", json={"fields": fields}, idempotent=False).json()
         return Ticket(data["key"], data["key"], f"{self.url}/browse/{data['key']}")
+
+    def note(self, ticket_id: str, body: str) -> None:
+        self.http.request("POST", f"/rest/api/3/issue/{ticket_id}/comment", json={"body": adf(body)}, idempotent=False)
 
     def close(self, ticket_id: str, note: str) -> None:
         self.http.request("POST", f"/rest/api/3/issue/{ticket_id}/comment", json={"body": adf(note)}, idempotent=False)

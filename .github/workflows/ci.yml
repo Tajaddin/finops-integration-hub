@@ -41,15 +41,18 @@ jobs:
         with: { name: coverage, path: coverage.xml, retention-days: 14 }
 
   integration:
-    name: live stack (Odoo, EspoCRM, Zammad, hub)
+    name: live stack (Odoo, EspoCRM, Zammad, n8n, hub)
     runs-on: ubuntu-24.04
     env:
-      COMPOSE_PROFILES: core,tickets
+      COMPOSE_PROFILES: core,tickets,automation
+      HUB_TRIAGE_MODEL: fake   # a deterministic stand-in: CI tests the wiring; reports/triage/ measures the model
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
       - run: uv sync --locked --all-extras
+      - name: triage baseline (Bitext from Hugging Face, trained on the runner)
+        run: uv run hub triage-index --no-embed
       - name: local secrets and the stack
         run: |
           python3 scripts/make_env.py
@@ -85,6 +88,10 @@ jobs:
           print(json.dumps({"score": o, "first": r["tickets_first_run"], "rerun": r["tickets_rerun"]}))
           PY
           docker compose start hub
+      - name: the n8n workflows exported in the repo are what n8n holds after import
+        run: |
+          uv run python scripts/export_n8n.py
+          git diff --exit-code -- n8n/workflows
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: integration-reports, path: .ci/, retention-days: 14 }
