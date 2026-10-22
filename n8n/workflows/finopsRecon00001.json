@@ -1,0 +1,184 @@
+{
+  "id": "finopsRecon00001",
+  "name": "Nightly reconciliation and billing status",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "7a2d3f20-0002-4c1a-9b10-000000000001",
+      "name": "Every night at 02:00 UTC",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7a2d3f20-0002-4c1a-9b10-000000000002",
+      "name": "Run now (webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "0b7f8a52-6e1d-4f6b-9b55-1a0d7f2a5e02",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "run-reconciliation",
+        "responseMode": "lastNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "n8nWebhookKey001",
+          "name": "Webhook key"
+        }
+      }
+    },
+    {
+      "id": "7a2d3f20-0002-4c1a-9b10-000000000003",
+      "name": "Billing status back to the CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubApiKey0000001",
+          "name": "Hub API key"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "http://hub:8000/v1/billing-status/refresh",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "7a2d3f20-0002-4c1a-9b10-000000000004",
+      "name": "Reconcile and file tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubApiKey0000001",
+          "name": "Hub API key"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "http://hub:8000/v1/recon/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "7a2d3f20-0002-4c1a-9b10-000000000005",
+      "name": "Summary to finance ops",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        780,
+        100
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "mailpitSmtp00001",
+          "name": "Mailpit SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "integration-hub@ledgerline.example",
+        "toEmail": "finance-ops@ledgerline.example",
+        "subject": "=Reconciliation: {{ $json.exceptions }} open exceptions",
+        "emailFormat": "text",
+        "text": "=Reconciliation run {{ $json.run_id }}: {{ $json.won_deals }} won deals and {{ $json.invoices }} invoices compared.\n\nOpen exceptions by class:\n{{ Object.entries($json.by_kind).map(([k, v]) => '- ' + k + ': ' + v).join('\\n') }}\n\nTickets: {{ $json.tickets ? $json.tickets.opened : 0 }} opened, {{ $json.tickets ? $json.tickets.closed_resolved : 0 }} closed as resolved, {{ $json.tickets ? $json.tickets.already_open : 0 }} still open.\nBilling status updates sent to the CRM: {{ $('Billing status back to the CRM').item.json.sent }}.",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Every night at 02:00 UTC": {
+      "main": [
+        [
+          {
+            "node": "Billing status back to the CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run now (webhook)": {
+      "main": [
+        [
+          {
+            "node": "Billing status back to the CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Billing status back to the CRM": {
+      "main": [
+        [
+          {
+            "node": "Reconcile and file tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile and file tickets": {
+      "main": [
+        [
+          {
+            "node": "Summary to finance ops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}

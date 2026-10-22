@@ -1,0 +1,270 @@
+{
+  "id": "finopsTriage0001",
+  "name": "Billing message intake with refund approval",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "nodes": [
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000001",
+      "name": "Billing message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "0b7f8a52-6e1d-4f6b-9b55-1a0d7f2a5e03",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "billing-message",
+        "responseMode": "responseNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "n8nWebhookKey001",
+          "name": "Webhook key"
+        }
+      }
+    },
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000002",
+      "name": "Triage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubApiKey0000001",
+          "name": "Hub API key"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "http://hub:8000/v1/triage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $json.body.message, sender: $json.body.sender }) }}",
+        "options": {
+          "timeout": 180000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "=n8n-{{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000003",
+      "name": "Answer the caller",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        100
+      ],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseCode": 202
+        }
+      }
+    },
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000004",
+      "name": "Needs approval?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c3a0b8d2-0003-4f00-8000-000000000001",
+              "leftValue": "={{ $('Triage').item.json.needs_approval }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000005",
+      "name": "Ask finance to approve",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1040,
+        0
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "mailpitSmtp00001",
+          "name": "Mailpit SMTP"
+        }
+      },
+      "parameters": {
+        "fromEmail": "integration-hub@ledgerline.example",
+        "toEmail": "finance-approvals@ledgerline.example",
+        "subject": "=Refund approval needed: {{ $('Triage').item.json.refund_amount }} (ticket {{ $('Triage').item.json.ticket }})",
+        "emailFormat": "text",
+        "text": "=A customer asked for a refund of {{ $('Triage').item.json.refund_amount }}, above the approval threshold. Ticket {{ $('Triage').item.json.ticket }} holds the message and the drafted reply.\n\nApprove: {{ $execution.resumeUrl }}&decision=approved\nReject: {{ $execution.resumeUrl }}&decision=rejected",
+        "options": {}
+      }
+    },
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000006",
+      "name": "Wait for the decision",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1300,
+        0
+      ],
+      "webhookId": "0b7f8a52-6e1d-4f6b-9b55-1a0d7f2a5e04",
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "GET",
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 3,
+        "resumeUnit": "days",
+        "options": {}
+      }
+    },
+    {
+      "id": "8b3e4a30-0003-4c1a-9b10-000000000007",
+      "name": "Record the decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubApiKey0000001",
+          "name": "Hub API key"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=http://hub:8000/v1/triage/{{ $('Triage').item.json.id }}/decision",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ approved: $json.query.decision === 'approved', by: 'finance (n8n approval link)' }) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    }
+  ],
+  "connections": {
+    "Billing message": {
+      "main": [
+        [
+          {
+            "node": "Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triage": {
+      "main": [
+        [
+          {
+            "node": "Answer the caller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer the caller": {
+      "main": [
+        [
+          {
+            "node": "Needs approval?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs approval?": {
+      "main": [
+        [
+          {
+            "node": "Ask finance to approve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Ask finance to approve": {
+      "main": [
+        [
+          {
+            "node": "Wait for the decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the decision": {
+      "main": [
+        [
+          {
+            "node": "Record the decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}
