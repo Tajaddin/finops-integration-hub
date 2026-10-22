@@ -268,3 +268,39 @@ class Store:
                 (digest, source, records),
             ).fetchone()
             return row is not None
+
+    # triage
+    def save_triage(self, sender: str, message: str, result: dict[str, Any], idempotency_key: str | None = None) -> int:
+        with self.connect() as conn:
+            row = conn.execute(
+                """INSERT INTO triage_run (sender, message, result, needs_approval, idempotency_key)
+                   VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+                (sender, message, json.dumps(result, default=str), bool(result.get("needs_approval")), idempotency_key),
+            ).fetchone()
+            assert row is not None
+            return int(row["id"])
+
+    def set_triage_ticket(self, run_id: int, system: str, ticket_id: str, ref: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE triage_run SET ticket_system = %s, ticket_id = %s, ticket_ref = %s WHERE id = %s",
+                (system, ticket_id, ref, run_id),
+            )
+
+    def triage_by_key(self, idempotency_key: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM triage_run WHERE idempotency_key = %s", (idempotency_key,)).fetchone()
+
+    def get_triage(self, run_id: int) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM triage_run WHERE id = %s", (run_id,)).fetchone()
+
+    def decide_triage(self, run_id: int, decision: str, by: str) -> bool:
+        """Record an approval decision once; False if it was already decided or never needed one."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """UPDATE triage_run SET decision = %s, decided_by = %s, decided_at = now()
+                   WHERE id = %s AND needs_approval AND decision IS NULL RETURNING id""",
+                (decision, by, run_id),
+            ).fetchone()
+            return row is not None

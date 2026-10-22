@@ -25,7 +25,9 @@ class FakeSink:
     def __init__(self) -> None:
         self.tickets: dict[str, dict[str, Any]] = {}
 
-    def open(self, title: str, body: str, *, queue: str, priority: str, tags: list[str]) -> Ticket:
+    def open(
+        self, title: str, body: str, *, queue: str, priority: str, tags: list[str], customer: str | None = None
+    ) -> Ticket:
         tid = str(len(self.tickets) + 1)
         self.tickets[tid] = {
             "title": title,
@@ -37,6 +39,9 @@ class FakeSink:
             "notes": [],
         }
         return Ticket(tid, f"#{tid}")
+
+    def note(self, ticket_id: str, body: str) -> None:
+        self.tickets[ticket_id]["notes"].append(body)
 
     def close(self, ticket_id: str, note: str) -> None:
         self.tickets[ticket_id]["open"] = False

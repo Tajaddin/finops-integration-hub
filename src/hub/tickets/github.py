@@ -31,7 +31,9 @@ class GitHubTickets:
         }
         self.http = Http("github", "https://api.github.com", headers, timeout, retries, transport=transport)
 
-    def open(self, title: str, body: str, *, queue: str, priority: str, tags: list[str]) -> Ticket:
+    def open(
+        self, title: str, body: str, *, queue: str, priority: str, tags: list[str], customer: str | None = None
+    ) -> Ticket:
         labels = [f"queue:{queue.lower().replace(' ', '-')}", f"priority:{priority}", *tags]
         data = self.http.request(
             "POST",
@@ -40,6 +42,11 @@ class GitHubTickets:
             idempotent=False,
         ).json()
         return Ticket(str(data["number"]), f"#{data['number']}", data.get("html_url"))
+
+    def note(self, ticket_id: str, body: str) -> None:
+        self.http.request(
+            "POST", f"/repos/{self.repo}/issues/{int(ticket_id)}/comments", json={"body": body}, idempotent=False
+        )
 
     def close(self, ticket_id: str, note: str) -> None:
         self.http.request(
