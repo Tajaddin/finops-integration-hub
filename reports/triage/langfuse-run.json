@@ -1,0 +1,2181 @@
+{
+  "what": "challenge-set e-mails through n8n -> hub -> triage agent, every turn read back from Langfuse",
+  "setup": "local stack on one machine; qwen2.5:7b in Ollama on an RTX 4060 8 GB; Langfuse 4.67 self-hosted",
+  "sent": 90,
+  "accepted": 90,
+  "traces_in_langfuse": 90,
+  "observations_in_langfuse": 1470,
+  "latency_s_p50": 2.682,
+  "latency_s_p95": 4.204,
+  "llm_calls_per_turn_mean": 1.89,
+  "prompt_tokens_per_turn_mean": 1124.4,
+  "completion_tokens_per_turn_mean": 115.6,
+  "llm_share_of_latency": 0.975,
+  "models": [
+    "qwen2.5:7b"
+  ],
+  "turns": [
+    {
+      "trace": "0215de5e41b44cacca86f26150022c6a",
+      "latency_s": 3.055,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1325,
+      "completion_tokens": 124,
+      "llm_seconds": 2.99,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "02d1d90a4e039d7e6143ff5fb6b63135",
+      "latency_s": 2.562,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1197,
+      "completion_tokens": 99,
+      "llm_seconds": 2.496,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "0bd1e740339f332c5a18c4ea3bb2f0ea",
+      "latency_s": 2.796,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1206,
+      "completion_tokens": 108,
+      "llm_seconds": 2.722,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "110f73bf2ffb8585203e0e79f13c4dc1",
+      "latency_s": 2.476,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1097,
+      "completion_tokens": 100,
+      "llm_seconds": 2.388,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "12d852c478e9f4adef3c4d450a7a6cea",
+      "latency_s": 2.424,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1225,
+      "completion_tokens": 92,
+      "llm_seconds": 2.334,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "14b6f4aced0d7e22379ac7e079ade7ee",
+      "latency_s": 2.33,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1135,
+      "completion_tokens": 89,
+      "llm_seconds": 2.249,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "14f729ecb3d27b8555cddbcba2706156",
+      "latency_s": 3.865,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1136,
+      "completion_tokens": 167,
+      "llm_seconds": 3.799,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "15b839e6f726cdaa42bf18256181e49b",
+      "latency_s": 2.502,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1178,
+      "completion_tokens": 96,
+      "llm_seconds": 2.433,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "15bcccd3b0bd812a1c6cce79014e99f1",
+      "latency_s": 2.768,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1141,
+      "completion_tokens": 111,
+      "llm_seconds": 2.695,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "163142bdae74b1486ec3df65e7dd6624",
+      "latency_s": 3.411,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1166,
+      "completion_tokens": 143,
+      "llm_seconds": 3.349,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "16501619fbd3a3d28d702c4e500f6b59",
+      "latency_s": 3.034,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1152,
+      "completion_tokens": 128,
+      "llm_seconds": 2.966,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "193f5f06348320cef3047bbc3592f25d",
+      "latency_s": 2.348,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1174,
+      "completion_tokens": 92,
+      "llm_seconds": 2.281,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "1a86ce63e2552008fbce3f7c12fc6775",
+      "latency_s": 2.738,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1240,
+      "completion_tokens": 111,
+      "llm_seconds": 2.661,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "1eb637153e558f8c9720facbf41516a0",
+      "latency_s": 4.204,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1346,
+      "completion_tokens": 180,
+      "llm_seconds": 4.131,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "1fa79818e4d8b603ee9624d4b7daf636",
+      "latency_s": 3.12,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1173,
+      "completion_tokens": 129,
+      "llm_seconds": 3.053,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "21a22e646d95f03acc5f18d81a38f3d8",
+      "latency_s": 2.248,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1129,
+      "completion_tokens": 88,
+      "llm_seconds": 2.168,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "249e4754e46654f064d1e6b6135d37ef",
+      "latency_s": 2.368,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1160,
+      "completion_tokens": 92,
+      "llm_seconds": 2.307,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "255afa9830ba95a9bb779d01ddbd1d52",
+      "latency_s": 1.752,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1184,
+      "completion_tokens": 65,
+      "llm_seconds": 1.676,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "29da414b84133d5648820959075740d9",
+      "latency_s": 2.421,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1150,
+      "completion_tokens": 97,
+      "llm_seconds": 2.355,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "2a4175319d30e088735f971fa665e829",
+      "latency_s": 2.091,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1142,
+      "completion_tokens": 80,
+      "llm_seconds": 2.026,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "321fd74bfd03959870d4063fd9d8ca01",
+      "latency_s": 3.163,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1275,
+      "completion_tokens": 129,
+      "llm_seconds": 3.098,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "3900cdef5b6033265a233b7e0485e92c",
+      "latency_s": 4.379,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1406,
+      "completion_tokens": 183,
+      "llm_seconds": 4.299,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "39dbbf2ebd5c0ea363363984f11927a8",
+      "latency_s": 2.628,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1177,
+      "completion_tokens": 105,
+      "llm_seconds": 2.543,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "3bfb8e02751e43d3a3f89751add94659",
+      "latency_s": 2.682,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1191,
+      "completion_tokens": 107,
+      "llm_seconds": 2.619,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "3c0ce82b8d1fb61cffb891639f3c2818",
+      "latency_s": 2.198,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1217,
+      "completion_tokens": 87,
+      "llm_seconds": 2.132,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "3dc8fb603bf8512e9845a13f5de057fc",
+      "latency_s": 2.804,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1118,
+      "completion_tokens": 116,
+      "llm_seconds": 2.736,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "3fe14261a32704e8c98b107cc9dc0c2a",
+      "latency_s": 2.591,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1165,
+      "completion_tokens": 105,
+      "llm_seconds": 2.518,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "417ac065f3742bf3ee802a96ed88e3ef",
+      "latency_s": 2.51,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1225,
+      "completion_tokens": 97,
+      "llm_seconds": 2.446,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "4b32658f37ef33392fd187e4a1f5be93",
+      "latency_s": 2.105,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1098,
+      "completion_tokens": 83,
+      "llm_seconds": 2.039,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "4c2dbb6196db2601845e724992c00b24",
+      "latency_s": 3.066,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1160,
+      "completion_tokens": 127,
+      "llm_seconds": 3.003,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "50514ac2186472dd79c2e60869557ee4",
+      "latency_s": 2.373,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1175,
+      "completion_tokens": 93,
+      "llm_seconds": 2.306,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "56e2ff9fe9fa3af5579ba59fe9386a37",
+      "latency_s": 2.184,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 436,
+      "completion_tokens": 96,
+      "llm_seconds": 2.15,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "5c2d393ee6ad2663f6e60ed20ef1d436",
+      "latency_s": 3.032,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1301,
+      "completion_tokens": 125,
+      "llm_seconds": 2.966,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "5e47633b74ef5ac0195f4d6199834230",
+      "latency_s": 3.216,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1130,
+      "completion_tokens": 134,
+      "llm_seconds": 3.15,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "61ea1424b19f5cd9d21a291beaf74229",
+      "latency_s": 2.674,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1275,
+      "completion_tokens": 104,
+      "llm_seconds": 2.609,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "66170b2ae9b11ab2bf0d14b33b367422",
+      "latency_s": 2.625,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1100,
+      "completion_tokens": 108,
+      "llm_seconds": 2.551,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "66606abdda8a3af1e75e88506402fed1",
+      "latency_s": 3.336,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1288,
+      "completion_tokens": 138,
+      "llm_seconds": 3.26,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "67f08ad12fd4573f596464b551a7f21c",
+      "latency_s": 2.321,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1118,
+      "completion_tokens": 92,
+      "llm_seconds": 2.251,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "6a99cd3f131ff043e322dc2cd6c48fb4",
+      "latency_s": 2.628,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 436,
+      "completion_tokens": 115,
+      "llm_seconds": 2.584,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "6b2609a5609e76e9934e88e93e65269c",
+      "latency_s": 2.446,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1345,
+      "completion_tokens": 89,
+      "llm_seconds": 2.367,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "7062363500f8ae321dd1c4d60d1fefe0",
+      "latency_s": 2.61,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1238,
+      "completion_tokens": 102,
+      "llm_seconds": 2.545,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "71f138b3fdb4f14a6a8661fbab27131c",
+      "latency_s": 3.796,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1238,
+      "completion_tokens": 159,
+      "llm_seconds": 3.719,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "7330ee3959d14fc8f93a10cc787d79ec",
+      "latency_s": 2.227,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 435,
+      "completion_tokens": 96,
+      "llm_seconds": 2.19,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "76592cddfbef375328aaed51b215b6aa",
+      "latency_s": 2.946,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1371,
+      "completion_tokens": 115,
+      "llm_seconds": 2.872,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "781a6a6fd0490d0716ddcc1c35b66bd0",
+      "latency_s": 4.316,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1229,
+      "completion_tokens": 186,
+      "llm_seconds": 4.245,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "793ae4ecb41990cec6c7b751faa3afd0",
+      "latency_s": 4.311,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1330,
+      "completion_tokens": 183,
+      "llm_seconds": 4.236,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "798221fd83e6972d19b1a4208cad3028",
+      "latency_s": 3.175,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1289,
+      "completion_tokens": 129,
+      "llm_seconds": 3.107,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "7a26890b910ab980f964c8791785bf58",
+      "latency_s": 2.543,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1242,
+      "completion_tokens": 100,
+      "llm_seconds": 2.471,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "7ba751c959f419c46581424ad396ba50",
+      "latency_s": 3.033,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1155,
+      "completion_tokens": 127,
+      "llm_seconds": 2.965,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "7d9fdd78fa258ad928207169596181f1",
+      "latency_s": 2.958,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1219,
+      "completion_tokens": 120,
+      "llm_seconds": 2.889,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "840b7dead89ce59c7a1afa1aeea93b11",
+      "latency_s": 3.699,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1410,
+      "completion_tokens": 152,
+      "llm_seconds": 3.626,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "8501b395d3edc99483ccf136420e7b1d",
+      "latency_s": 1.852,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 493,
+      "completion_tokens": 78,
+      "llm_seconds": 1.817,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "8c8126ac74d452f1e7b915d9bfd684ac",
+      "latency_s": 1.38,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1201,
+      "completion_tokens": 42,
+      "llm_seconds": 1.304,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "8f2ed0cb68737b78ac78190e79bb9212",
+      "latency_s": 1.608,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 491,
+      "completion_tokens": 70,
+      "llm_seconds": 1.575,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "919eb48ce727eaff7a69d61741005664",
+      "latency_s": 2.489,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1173,
+      "completion_tokens": 99,
+      "llm_seconds": 2.421,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "95e3d205da7b52025514e5e44534f8ef",
+      "latency_s": 2.998,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1153,
+      "completion_tokens": 122,
+      "llm_seconds": 2.927,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "975178bac476dc8fa9e2e0f1fcb3a729",
+      "latency_s": 2.111,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 426,
+      "completion_tokens": 94,
+      "llm_seconds": 2.076,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "9d7b4e31854acf58cc7c97b60f3ec58a",
+      "latency_s": 3.012,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1326,
+      "completion_tokens": 120,
+      "llm_seconds": 2.932,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "9fa85583b9dd93a7f380da065aeb6976",
+      "latency_s": 1.833,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 435,
+      "completion_tokens": 80,
+      "llm_seconds": 1.799,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "a06dc786bd74f8da9863227ffb085a5f",
+      "latency_s": 3.012,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1125,
+      "completion_tokens": 126,
+      "llm_seconds": 2.947,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "a1c4a46483c8d50904f0f4ac27f3f5b9",
+      "latency_s": 2.676,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1290,
+      "completion_tokens": 105,
+      "llm_seconds": 2.604,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "a2cbaa80e2c9685b2f5054eef4648e07",
+      "latency_s": 1.583,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 439,
+      "completion_tokens": 66,
+      "llm_seconds": 1.547,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "a396747fcc0a90d3b588ecd3ff585140",
+      "latency_s": 3.775,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1251,
+      "completion_tokens": 160,
+      "llm_seconds": 3.699,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "ad8b96be9dfdffa4755d1c5d3917a768",
+      "latency_s": 2.696,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1159,
+      "completion_tokens": 113,
+      "llm_seconds": 2.632,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "adba20dc5d15d222d68d65da3e30a487",
+      "latency_s": 3.614,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1344,
+      "completion_tokens": 154,
+      "llm_seconds": 3.541,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "b12fbeaf0ea7a5af1b96ca6c0ddfc4c9",
+      "latency_s": 1.743,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 446,
+      "completion_tokens": 74,
+      "llm_seconds": 1.708,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "b13c3d6700a294a0db7b9d0b7f3220f8",
+      "latency_s": 3.147,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1273,
+      "completion_tokens": 126,
+      "llm_seconds": 3.078,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "b6715a8309e71970f42e4a3f08e0ab54",
+      "latency_s": 2.517,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1120,
+      "completion_tokens": 101,
+      "llm_seconds": 2.446,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "b6d3cf5928126b952f4612e08e4efed6",
+      "latency_s": 8.927,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1351,
+      "completion_tokens": 410,
+      "llm_seconds": 8.854,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "b85b0706b4d433fb899f6e799f48ba35",
+      "latency_s": 3.319,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1118,
+      "completion_tokens": 142,
+      "llm_seconds": 3.252,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "bf9d8ba227556f477c1f31259ee6ae1e",
+      "latency_s": 2.91,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1214,
+      "completion_tokens": 121,
+      "llm_seconds": 2.841,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "bfe64c0ccbb55bb75b8f8a7ea5fe5093",
+      "latency_s": 3.308,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1122,
+      "completion_tokens": 141,
+      "llm_seconds": 3.239,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "cb39e26d5f8a7e38da63acbe59dd03b0",
+      "latency_s": 2.744,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1258,
+      "completion_tokens": 105,
+      "llm_seconds": 2.674,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "cc9e1303d82a76f2c62461b3e3896b47",
+      "latency_s": 2.777,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1156,
+      "completion_tokens": 110,
+      "llm_seconds": 2.689,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "cd6b4e03fe840ccea00accb1911e47f2",
+      "latency_s": 3.419,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1247,
+      "completion_tokens": 145,
+      "llm_seconds": 3.341,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "d3c9c925eb28490d37337c3952fa99c2",
+      "latency_s": 2.126,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1176,
+      "completion_tokens": 79,
+      "llm_seconds": 2.022,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "d617cefcbcb55c2d9abce1d768268f02",
+      "latency_s": 2.64,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1142,
+      "completion_tokens": 104,
+      "llm_seconds": 2.55,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "d87b356959e0744d9ba221d48e04e7f1",
+      "latency_s": 2.976,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1161,
+      "completion_tokens": 122,
+      "llm_seconds": 2.907,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "db63a987d6b73e11e4feeea60fc4bada",
+      "latency_s": 2.405,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1164,
+      "completion_tokens": 95,
+      "llm_seconds": 2.342,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "dbd5daf53710feed324b6748d59979d2",
+      "latency_s": 3.451,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1259,
+      "completion_tokens": 143,
+      "llm_seconds": 3.381,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "e4dca5faf8389e6fdd6de0bc0447db08",
+      "latency_s": 2.331,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1172,
+      "completion_tokens": 90,
+      "llm_seconds": 2.241,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "e8f8428495001aaefc63fdfb42bc71a3",
+      "latency_s": 2.196,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1116,
+      "completion_tokens": 85,
+      "llm_seconds": 2.128,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "f10399a4823e87a54478e755b3781747",
+      "latency_s": 2.362,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1092,
+      "completion_tokens": 94,
+      "llm_seconds": 2.292,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "f43df81841975d7666adbaca2405f2d2",
+      "latency_s": 2.817,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1234,
+      "completion_tokens": 116,
+      "llm_seconds": 2.75,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "f787a6cbae830b692215620b771bf87f",
+      "latency_s": 2.178,
+      "observations": 11,
+      "llm_calls": 1,
+      "prompt_tokens": 410,
+      "completion_tokens": 97,
+      "llm_seconds": 2.142,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "f7ca8cd842d1afb38023993baa4a352f",
+      "latency_s": 3.313,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1338,
+      "completion_tokens": 121,
+      "llm_seconds": 2.976,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "f8c710b566ff84bddc3ad139e6440b40",
+      "latency_s": 3.523,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1310,
+      "completion_tokens": 141,
+      "llm_seconds": 3.355,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "fa356bf9af17a2122e122023ecfb9b7f",
+      "latency_s": 2.498,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1144,
+      "completion_tokens": 100,
+      "llm_seconds": 2.431,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "ff06322c0534085878fd5b355bc9d84d",
+      "latency_s": 2.677,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1318,
+      "completion_tokens": 103,
+      "llm_seconds": 2.602,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    },
+    {
+      "trace": "ff06af42adfaeccf55abf47f11d93d84",
+      "latency_s": 2.734,
+      "observations": 17,
+      "llm_calls": 2,
+      "prompt_tokens": 1103,
+      "completion_tokens": 113,
+      "llm_seconds": 2.668,
+      "models": [
+        "qwen2.5:7b"
+      ]
+    }
+  ],
+  "answers": [
+    {
+      "id": 195,
+      "status": 202,
+      "intent": "cancel_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.524,
+      "ticket": "78282"
+    },
+    {
+      "id": 196,
+      "status": 202,
+      "intent": "cancel_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.336,
+      "ticket": "78283"
+    },
+    {
+      "id": 197,
+      "status": 202,
+      "intent": "cancel_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.451,
+      "ticket": "78284"
+    },
+    {
+      "id": 198,
+      "status": 202,
+      "intent": "change_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.743,
+      "ticket": "78285"
+    },
+    {
+      "id": 199,
+      "status": 202,
+      "intent": "change_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.674,
+      "ticket": "78286"
+    },
+    {
+      "id": 200,
+      "status": 202,
+      "intent": "change_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.958,
+      "ticket": "78287"
+    },
+    {
+      "id": 201,
+      "status": 202,
+      "intent": "place_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.055,
+      "ticket": "78288"
+    },
+    {
+      "id": 202,
+      "status": 202,
+      "intent": "place_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.502,
+      "ticket": "78289"
+    },
+    {
+      "id": 203,
+      "status": 202,
+      "intent": "place_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.175,
+      "ticket": "78290"
+    },
+    {
+      "id": 204,
+      "status": 202,
+      "intent": "track_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.148,
+      "ticket": "78291"
+    },
+    {
+      "id": 205,
+      "status": 202,
+      "intent": "track_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.51,
+      "ticket": "78292"
+    },
+    {
+      "id": 206,
+      "status": 202,
+      "intent": "track_order",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.61,
+      "ticket": "78293"
+    },
+    {
+      "id": 207,
+      "status": 202,
+      "intent": "change_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.12,
+      "ticket": "78294"
+    },
+    {
+      "id": 208,
+      "status": 202,
+      "intent": "change_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.562,
+      "ticket": "78295"
+    },
+    {
+      "id": 209,
+      "status": 202,
+      "intent": "change_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.405,
+      "ticket": "78296"
+    },
+    {
+      "id": 210,
+      "status": 202,
+      "intent": "set_up_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.035,
+      "ticket": "78297"
+    },
+    {
+      "id": 211,
+      "status": 202,
+      "intent": "set_up_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.768,
+      "ticket": "78298"
+    },
+    {
+      "id": 212,
+      "status": 202,
+      "intent": "set_up_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.412,
+      "ticket": "78299"
+    },
+    {
+      "id": 213,
+      "status": 202,
+      "intent": "delivery_options",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 2.628,
+      "ticket": "78300"
+    },
+    {
+      "id": 214,
+      "status": 202,
+      "intent": "delivery_options",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 1.744,
+      "ticket": "78301"
+    },
+    {
+      "id": 215,
+      "status": 202,
+      "intent": "delivery_options",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.498,
+      "ticket": "78302"
+    },
+    {
+      "id": 216,
+      "status": 202,
+      "intent": "delivery_period",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.682,
+      "ticket": "78303"
+    },
+    {
+      "id": 217,
+      "status": 202,
+      "intent": "delivery_period",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.696,
+      "ticket": "78304"
+    },
+    {
+      "id": 218,
+      "status": 202,
+      "intent": "delivery_period",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.997,
+      "ticket": "78305"
+    },
+    {
+      "id": 219,
+      "status": 202,
+      "intent": "check_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.09,
+      "ticket": "78306"
+    },
+    {
+      "id": 220,
+      "status": 202,
+      "intent": "check_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.676,
+      "ticket": "78307"
+    },
+    {
+      "id": 221,
+      "status": 202,
+      "intent": "check_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.776,
+      "ticket": "78308"
+    },
+    {
+      "id": 222,
+      "status": 202,
+      "intent": "get_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.738,
+      "ticket": "78309"
+    },
+    {
+      "id": 223,
+      "status": 202,
+      "intent": "get_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.543,
+      "ticket": "78310"
+    },
+    {
+      "id": 224,
+      "status": 202,
+      "intent": "get_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.014,
+      "ticket": "78311"
+    },
+    {
+      "id": 225,
+      "status": 202,
+      "intent": "check_payment_methods",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.796,
+      "ticket": "78312"
+    },
+    {
+      "id": 226,
+      "status": 202,
+      "intent": "check_payment_methods",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.091,
+      "ticket": "78313"
+    },
+    {
+      "id": 227,
+      "status": 202,
+      "intent": "check_payment_methods",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.126,
+      "ticket": "78314"
+    },
+    {
+      "id": 228,
+      "status": 202,
+      "intent": "payment_issue",
+      "queue": "Collections",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 4.311,
+      "ticket": "78315"
+    },
+    {
+      "id": 229,
+      "status": 202,
+      "intent": "payment_issue",
+      "queue": "Collections",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.677,
+      "ticket": "78316"
+    },
+    {
+      "id": 230,
+      "status": 202,
+      "intent": "payment_issue",
+      "queue": "Collections",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.639,
+      "ticket": "78317"
+    },
+    {
+      "id": 231,
+      "status": 202,
+      "intent": "check_refund_policy",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.424,
+      "ticket": "78318"
+    },
+    {
+      "id": 232,
+      "status": 202,
+      "intent": "check_refund_policy",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.91,
+      "ticket": "78319"
+    },
+    {
+      "id": 233,
+      "status": 202,
+      "intent": "check_refund_policy",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.198,
+      "ticket": "78320"
+    },
+    {
+      "id": 234,
+      "status": 202,
+      "intent": "get_refund",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": 240,
+      "path": "llm",
+      "seconds": 3.616,
+      "ticket": "78321"
+    },
+    {
+      "id": 235,
+      "status": 202,
+      "intent": "get_refund",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": true,
+      "refund_amount": 1850,
+      "path": "llm",
+      "seconds": 3.699,
+      "ticket": "78322"
+    },
+    {
+      "id": 236,
+      "status": 202,
+      "intent": "get_refund",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": 95,
+      "path": "llm",
+      "seconds": 4.317,
+      "ticket": "78323"
+    },
+    {
+      "id": 237,
+      "status": 202,
+      "intent": "track_refund",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.945,
+      "ticket": "78324"
+    },
+    {
+      "id": 238,
+      "status": 202,
+      "intent": "track_refund",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.817,
+      "ticket": "78325"
+    },
+    {
+      "id": 239,
+      "status": 202,
+      "intent": "track_refund",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 4.204,
+      "ticket": "78326"
+    },
+    {
+      "id": 240,
+      "status": 202,
+      "intent": "check_cancellation_fee",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 1.852,
+      "ticket": "78327"
+    },
+    {
+      "id": 241,
+      "status": 202,
+      "intent": "check_cancellation_fee",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 1.751,
+      "ticket": "78328"
+    },
+    {
+      "id": 242,
+      "status": 202,
+      "intent": "check_cancellation_fee",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 1.608,
+      "ticket": "78329"
+    },
+    {
+      "id": 243,
+      "status": 202,
+      "intent": "create_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 2.185,
+      "ticket": "78330"
+    },
+    {
+      "id": 244,
+      "status": 202,
+      "intent": "create_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.329,
+      "ticket": "78331"
+    },
+    {
+      "id": 245,
+      "status": 202,
+      "intent": "create_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 2.179,
+      "ticket": "78332"
+    },
+    {
+      "id": 246,
+      "status": 202,
+      "intent": "delete_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 1.582,
+      "ticket": "78333"
+    },
+    {
+      "id": 247,
+      "status": 202,
+      "intent": "delete_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.59,
+      "ticket": "78334"
+    },
+    {
+      "id": 248,
+      "status": 202,
+      "intent": "delete_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.517,
+      "ticket": "78335"
+    },
+    {
+      "id": 249,
+      "status": 202,
+      "intent": "change_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.308,
+      "ticket": "78336"
+    },
+    {
+      "id": 250,
+      "status": 202,
+      "intent": "set_up_shipping_address",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.489,
+      "ticket": "78337"
+    },
+    {
+      "id": 251,
+      "status": 202,
+      "intent": "edit_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.362,
+      "ticket": "78338"
+    },
+    {
+      "id": 252,
+      "status": 202,
+      "intent": "recover_password",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 2.111,
+      "ticket": "78339"
+    },
+    {
+      "id": 253,
+      "status": 202,
+      "intent": "recover_password",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.247,
+      "ticket": "78340"
+    },
+    {
+      "id": 254,
+      "status": 202,
+      "intent": "payment_issue",
+      "queue": "Collections",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.867,
+      "ticket": "78341"
+    },
+    {
+      "id": 255,
+      "status": 202,
+      "intent": "registration_problems",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.976,
+      "ticket": "78342"
+    },
+    {
+      "id": 256,
+      "status": 202,
+      "intent": "registration_problems",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.803,
+      "ticket": "78343"
+    },
+    {
+      "id": 257,
+      "status": 202,
+      "intent": "registration_problems",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.066,
+      "ticket": "78344"
+    },
+    {
+      "id": 258,
+      "status": 202,
+      "intent": "switch_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.625,
+      "ticket": "78345"
+    },
+    {
+      "id": 259,
+      "status": 202,
+      "intent": "switch_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.421,
+      "ticket": "78346"
+    },
+    {
+      "id": 260,
+      "status": 202,
+      "intent": "switch_account",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.012,
+      "ticket": "78347"
+    },
+    {
+      "id": 261,
+      "status": 202,
+      "intent": "contact_customer_service",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.216,
+      "ticket": "78348"
+    },
+    {
+      "id": 262,
+      "status": 202,
+      "intent": "contact_customer_service",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 2.226,
+      "ticket": "78349"
+    },
+    {
+      "id": 263,
+      "status": 202,
+      "intent": "contact_customer_service",
+      "queue": "Support",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.476,
+      "ticket": "78350"
+    },
+    {
+      "id": 264,
+      "status": 202,
+      "intent": "contact_human_agent",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.347,
+      "ticket": "78351"
+    },
+    {
+      "id": 265,
+      "status": 202,
+      "intent": "contact_human_agent",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "baseline",
+      "seconds": 1.834,
+      "ticket": "78352"
+    },
+    {
+      "id": 266,
+      "status": 202,
+      "intent": "contact_human_agent",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.104,
+      "ticket": "78353"
+    },
+    {
+      "id": 267,
+      "status": 202,
+      "intent": "complaint",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.032,
+      "ticket": "78354"
+    },
+    {
+      "id": 268,
+      "status": 202,
+      "intent": "complaint",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.163,
+      "ticket": "78355"
+    },
+    {
+      "id": 269,
+      "status": 202,
+      "intent": "complaint",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.331,
+      "ticket": "78356"
+    },
+    {
+      "id": 270,
+      "status": 202,
+      "intent": "review",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.734,
+      "ticket": "78357"
+    },
+    {
+      "id": 271,
+      "status": 202,
+      "intent": "review",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.628,
+      "ticket": "78358"
+    },
+    {
+      "id": 272,
+      "status": 202,
+      "intent": "review",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.321,
+      "ticket": "78359"
+    },
+    {
+      "id": 273,
+      "status": 202,
+      "intent": "newsletter_subscription",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.196,
+      "ticket": "78360"
+    },
+    {
+      "id": 274,
+      "status": 202,
+      "intent": "newsletter_subscription",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 2.367,
+      "ticket": "78361"
+    },
+    {
+      "id": 275,
+      "status": 202,
+      "intent": "newsletter_subscription",
+      "queue": "Support",
+      "priority": "low",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.32,
+      "ticket": "78362"
+    },
+    {
+      "id": 276,
+      "status": 202,
+      "intent": "get_refund",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": true,
+      "refund_amount": 4800,
+      "path": "llm",
+      "seconds": 4.378,
+      "ticket": "78363"
+    },
+    {
+      "id": 277,
+      "status": 202,
+      "intent": "review",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": true,
+      "refund_amount": 2400,
+      "path": "llm",
+      "seconds": 3.032,
+      "ticket": "78364"
+    },
+    {
+      "id": 278,
+      "status": 202,
+      "intent": "check_invoice",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.795,
+      "ticket": "78365"
+    },
+    {
+      "id": 279,
+      "status": 202,
+      "intent": "payment_issue",
+      "queue": "Collections",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.774,
+      "ticket": "78366"
+    },
+    {
+      "id": 280,
+      "status": 202,
+      "intent": "get_invoice",
+      "queue": "Billing",
+      "priority": "normal",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 3.419,
+      "ticket": "78367"
+    },
+    {
+      "id": 281,
+      "status": 202,
+      "intent": "get_refund",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": true,
+      "refund_amount": 650,
+      "path": "llm",
+      "seconds": 2.446,
+      "ticket": "78368"
+    },
+    {
+      "id": 282,
+      "status": 202,
+      "intent": "track_refund",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 8.927,
+      "ticket": "78369"
+    },
+    {
+      "id": 283,
+      "status": 202,
+      "intent": "check_cancellation_fee",
+      "queue": "Billing",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": null,
+      "path": "llm",
+      "seconds": 1.38,
+      "ticket": "78370"
+    },
+    {
+      "id": 284,
+      "status": 202,
+      "intent": "complaint",
+      "queue": "Support",
+      "priority": "high",
+      "needs_approval": false,
+      "refund_amount": 1000,
+      "path": "llm",
+      "seconds": 2.373,
+      "ticket": "78371"
+    }
+  ]
+}
