@@ -1,0 +1,155 @@
+# promtool test rules alerts_test.yml  (make alerts-test)
+rule_files:
+  - alert_rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: hub down pages after two minutes, not before
+    interval: 1m
+    input_series:
+      - series: up{job="hub", instance="hub:8000"}
+        values: "1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: HubDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: HubDown
+        exp_alerts:
+          - exp_labels: { severity: page, job: hub, instance: "hub:8000" }
+            exp_annotations:
+              summary: The integration hub is not answering
+              description: Prometheus cannot scrape the hub; syncs, webhooks and triage are stopped.
+              runbook: docs/RUNBOOK.md#hubdown
+
+  - name: a sync an hour old is stale; a recent one is not
+    interval: 1m
+    input_series:
+      # last success at t=0 and never again
+      - series: hub_sync_last_success_timestamp_seconds{job="hub"}
+        values: "0+0x80"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SyncStale
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: SyncStale
+        exp_alerts:
+          - exp_labels: { severity: page, job: hub }
+            exp_annotations:
+              summary: No successful CRM-to-ERP sync for over an hour
+              description: n8n runs the sync every 15 minutes; won deals are not being invoiced.
+              runbook: docs/RUNBOOK.md#syncstale
+
+  - name: a restarted hub is not stale while it waits for its first sync
+    interval: 1m
+    input_series:
+      # the process started at t=55m and set the gauge to its start time (3300 s)
+      - series: hub_sync_last_success_timestamp_seconds{job="hub"}
+        values: "0+0x54 3300+0x30"
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: SyncStale
+        exp_alerts: []
+
+  - name: dead letters must stay high for half an hour
+    interval: 5m
+    input_series:
+      - series: hub_dead_letters_open{job="hub"}
+        values: "3 25 25 25 25 25 25 25 25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: DeadLettersPilingUp
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: DeadLettersPilingUp
+        exp_alerts:
+          - exp_labels: { severity: ticket, job: hub }
+            exp_annotations:
+              summary: "25 won deals are waiting for a person to fix them"
+              description: Deals the sync could not invoice (bad data or a parked ERP error); `hub dead-letters` lists them.
+              runbook: docs/RUNBOOK.md#deadletterspilingup
+
+  - name: money mismatches alert per class; billing drift does not
+    interval: 1m
+    input_series:
+      - series: hub_recon_exceptions{job="hub", kind="amount_mismatch"}
+        values: "0 0 4"
+      - series: hub_recon_exceptions{job="hub", kind="billing_status_drift"}
+        values: "9 9 9"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: MoneyMismatchFound
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: MoneyMismatchFound
+        exp_alerts:
+          - exp_labels: { severity: ticket, kind: amount_mismatch }
+            exp_annotations:
+              summary: "Reconciliation found 4 amount_mismatch exceptions"
+              description: An invoice disagrees with its deal on money; each has a ticket in the Billing queue.
+              runbook: docs/RUNBOOK.md#moneymismatchfound
+
+  - name: a burst of forged webhooks alerts
+    interval: 1m
+    input_series:
+      - series: hub_webhook_deliveries_total{job="hub", source="espocrm", result="bad_signature"}
+        values: "0 0 1 3 6 9 12"
+      - series: hub_webhook_deliveries_total{job="hub", source="espocrm", result="accepted"}
+        values: "0 5 10 15 20 25 30"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: WebhookSignatureFailures
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WebhookSignatureFailures
+        exp_alerts:
+          - exp_labels: { severity: ticket, job: hub, source: espocrm, result: bad_signature }
+            exp_annotations:
+              summary: CRM webhooks are failing signature checks
+              description: Either the webhook secret was rotated without re-running the bootstrap, or someone is posting forged deliveries.
+              runbook: docs/RUNBOOK.md#webhooksignaturefailures
+
+  - name: triage slower than 20 s at p95 for ten minutes
+    interval: 1m
+    input_series:
+      # every message lands in the 32 s bucket: p95 is well above 20 s
+      - series: hub_triage_seconds_bucket{job="hub", le="16"}
+        values: "0+0x30"
+      - series: hub_triage_seconds_bucket{job="hub", le="32"}
+        values: "0+10x30"
+      - series: hub_triage_seconds_bucket{job="hub", le="+Inf"}
+        values: "0+10x30"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TriageSlow
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: TriageSlow
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations:
+              summary: Triage p95 is above 20 s
+              description: The local model is slow or overloaded (GPU memory, another model resident); n8n retries will start timing out.
+              runbook: docs/RUNBOOK.md#triageslow
+
+  - name: one in ten calls failing pages
+    interval: 1m
+    input_series:
+      - series: hub_http_request_seconds_count{job="hub", route="/v1/sync/runs", method="POST", status="200"}
+        values: "0+9x20"
+      - series: hub_http_request_seconds_count{job="hub", route="/v1/sync/runs", method="POST", status="502"}
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HubErrorRate
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: HubErrorRate
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              summary: More than 5% of hub API calls fail
+              description: A dependency (Odoo, EspoCRM, Zammad, the model) is failing; the logs name it.
+              runbook: docs/RUNBOOK.md#huberrorrate
