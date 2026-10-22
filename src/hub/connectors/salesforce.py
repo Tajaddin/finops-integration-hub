@@ -140,6 +140,14 @@ class SalesforceCrm:
         for r in self.query(f"SELECT {self._select()} FROM Opportunity ORDER BY SystemModstamp ASC"):
             yield self._to_deal(r)
 
+    def deal(self, deal_id: str) -> CrmDeal:
+        if not deal_id.isalnum() or len(deal_id) not in (15, 18):
+            raise PermanentError(f"not a Salesforce id: {deal_id!r}")
+        rows = list(self.query(f"SELECT {self._select()} FROM Opportunity WHERE Id = '{deal_id}'"))
+        if not rows:
+            raise PermanentError(f"opportunity {deal_id} not found")
+        return self._to_deal(rows[0])
+
     def account(self, account_id: str) -> CrmAccount:
         if not account_id.isalnum() or len(account_id) not in (15, 18):
             raise PermanentError(f"not a Salesforce id: {account_id!r}")

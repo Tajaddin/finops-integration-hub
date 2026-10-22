@@ -10,6 +10,7 @@ Odoo is configured by docker/odoo/bootstrap.py inside its container, because API
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from hub import log
 from hub.connectors.espocrm import CUSTOM_FIELDS, Espo
 from hub.connectors.http import ApiError
 
+WEBHOOK_EVENT = "Opportunity.fieldUpdate.stage"  # a deal reaching Closed Won (skipOwn: not the hub's write-backs)
 ROLE_NAME = "Integration Hub"
 API_USER = "integration-hub"
 logger = log.get(__name__)
@@ -99,11 +101,31 @@ def ensure_api_user(espo: Espo, key_file: Path) -> str:
             )
     key_file.parent.mkdir(parents=True, exist_ok=True)
     key_file.write_text(key, encoding="utf-8")
-    key_file.chmod(0o600)
+    key_file.chmod(0o644)  # read by the hub container (another uid); local folder only, see ADR 0005
     return str(user["id"] if user else created["id"])
 
 
-def bootstrap_espocrm(url: str, admin_password: str, key_file: Path) -> dict[str, Any]:
+def ensure_webhook(url: str, api_key: str, target: str, secret_file: Path) -> str:
+    """Subscribe the hub to stage changes on deals, as the API user (webhooks belong to the user that made them).
+    Re-running replaces the subscription and its secret."""
+    espo = Espo(url, api_key=api_key)
+    try:
+        for hook in espo.list_page("Webhook", [{"type": "equals", "attribute": "url", "value": target}], ["id"]).get(
+            "list", []
+        ):
+            espo.http.request("DELETE", f"/Webhook/{hook['id']}")
+        created = espo.create("Webhook", {"event": WEBHOOK_EVENT, "url": target, "skipOwn": True})
+    finally:
+        espo.close()
+    secret_file.parent.mkdir(parents=True, exist_ok=True)
+    secret_file.write_text(json.dumps({"id": created["id"], "secret": created["secretKey"]}), encoding="utf-8")
+    secret_file.chmod(0o644)
+    return str(created["id"])
+
+
+def bootstrap_espocrm(
+    url: str, admin_password: str, key_file: Path, secret_file: Path, webhook_target: str
+) -> dict[str, Any]:
     espo = Espo(url, admin=("admin", admin_password))
     try:
         fields = ensure_fields(espo)
@@ -111,5 +133,6 @@ def bootstrap_espocrm(url: str, admin_password: str, key_file: Path) -> dict[str
         user_id = ensure_api_user(espo, key_file)
     finally:
         espo.close()
-    logger.info("espocrm_bootstrapped", fields=len(fields), api_user=user_id)
-    return {"fields": fields, "api_user": user_id}
+    webhook = ensure_webhook(url, key_file.read_text(encoding="utf-8").strip(), webhook_target, secret_file)
+    logger.info("espocrm_bootstrapped", fields=len(fields), api_user=user_id, webhook=webhook)
+    return {"fields": fields, "api_user": user_id, "webhook": webhook}

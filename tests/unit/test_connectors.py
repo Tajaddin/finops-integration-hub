@@ -230,3 +230,12 @@ def test_espocrm_write_back_sets_the_two_custom_fields() -> None:
     EspoCrm(espo).write_back("d1", "INV/2026/00041", BillingStatus.PAID)
     assert seen[0].method == "PUT" and seen[0].url.path == "/api/v1/Opportunity/d1"
     assert json.loads(seen[0].content) == {"cErpInvoiceRef": "INV/2026/00041", "cBillingStatus": "paid"}
+
+
+def test_espocrm_in_filter_uses_php_array_syntax() -> None:
+    seen: list[httpx.Request] = []
+    espo = Espo(
+        "http://espo", api_key="key", transport=transport([httpx.Response(200, json={"total": 0, "list": []})], seen)
+    )
+    espo.list_page("Opportunity", [{"type": "in", "attribute": "stage", "value": ["Proposal", "Negotiation"]}], ["id"])
+    assert seen[0].url.params.get_list("where[0][value][]") == ["Proposal", "Negotiation"]

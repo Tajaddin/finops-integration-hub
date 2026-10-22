@@ -125,7 +125,8 @@ class Espo:
         }
         for i, clause in enumerate(where):
             for key, value in clause.items():
-                params[f"where[{i}][{key}]"] = value
+                # list values (the `in` filter) go as where[i][value][]=a&where[i][value][]=b, PHP's array syntax
+                params[f"where[{i}][{key}]" + ("[]" if isinstance(value, list) else "")] = value
         data: dict[str, Any] = self.http.request("GET", f"/{entity}", params=params).json()
         return data
 
@@ -143,8 +144,13 @@ class Espo:
         data: dict[str, Any] = self.http.request("GET", f"/{entity}/{record_id}").json()
         return data
 
-    def create(self, entity: str, values: dict[str, Any]) -> dict[str, Any]:
-        data: dict[str, Any] = self.http.request("POST", f"/{entity}", json=values, idempotent=False).json()
+    def create(self, entity: str, values: dict[str, Any], *, skip_duplicate_check: bool = False) -> dict[str, Any]:
+        """`skip_duplicate_check` for bulk loads: EspoCRM otherwise answers 409 when a record with the same name
+        exists (it is a prompt for a person, not an integrity rule)."""
+        headers = {"X-Skip-Duplicate-Check": "true"} if skip_duplicate_check else None
+        data: dict[str, Any] = self.http.request(
+            "POST", f"/{entity}", json=values, headers=headers, idempotent=False
+        ).json()
         return data
 
     def update(self, entity: str, record_id: str, values: dict[str, Any]) -> dict[str, Any]:
@@ -173,6 +179,11 @@ class EspoCrm:
     def deals(self) -> Iterator[CrmDeal]:
         for row in self.espo.iterate("Opportunity", [], DEAL_FIELDS):
             yield to_deal(row)
+
+    def deal(self, deal_id: str) -> CrmDeal:
+        if not deal_id.isalnum():
+            raise PermanentError(f"not an EspoCRM id: {deal_id!r}")
+        return to_deal(self.espo.get("Opportunity", deal_id))
 
     def account(self, account_id: str) -> CrmAccount:
         row = self.espo.get("Account", account_id)

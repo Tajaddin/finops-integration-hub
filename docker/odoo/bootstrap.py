@@ -56,6 +56,6 @@ for sku, name in plans.items():
 for name, value in (("odoo_api_key", key), ("odoo_admin_api_key", admin_key)):
     out = Path("/secrets") / name
     out.write_text(value, encoding="utf-8")
-    out.chmod(0o600)
+    out.chmod(0o644)  # read by the hub container (another uid); local folder only, see ADR 0005
 env.cr.commit()
 print(f"integration user #{user.id}; API keys written to /secrets")
