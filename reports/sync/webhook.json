@@ -1,0 +1,29 @@
+{
+  "what": "deal moved to Closed Won in EspoCRM -> signed webhook -> hub -> posted Odoo invoice",
+  "setup": "local Docker stack on one machine; EspoCRM's ProcessWebhookQueue job runs every minute",
+  "samples": [
+    {
+      "deal": "6ad96bb63c6fdcf70",
+      "seconds": 1.3
+    },
+    {
+      "deal": "6ad96bb6a1d07e3a1",
+      "seconds": 10.4
+    },
+    {
+      "deal": "6ad96bb71326c72bc",
+      "seconds": 9.4
+    },
+    {
+      "deal": "6ad96bb77909251db",
+      "seconds": 10.4
+    },
+    {
+      "deal": "6ad96bb7df67ef62b",
+      "seconds": 9.4
+    }
+  ],
+  "delivered": 5,
+  "seconds_median": 9.4,
+  "seconds_max": 10.4
+}

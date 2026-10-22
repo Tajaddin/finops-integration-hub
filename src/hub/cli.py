@@ -44,7 +44,16 @@ def bootstrap_espocrm() -> None:
     password = os.environ.get("ESPOCRM_ADMIN_PASSWORD")
     if not password:
         raise typer.BadParameter("ESPOCRM_ADMIN_PASSWORD is not set (see .env)")
-    _print(run(settings.espocrm_url, password, settings.espocrm_api_key_file or Path(".secrets/espocrm_api_key")))
+    target = os.environ.get("HUB_WEBHOOK_TARGET", "http://hub:8000/webhooks/espocrm")
+    _print(
+        run(
+            settings.espocrm_url,
+            password,
+            settings.espocrm_api_key_file or Path(".secrets/espocrm_api_key"),
+            settings.espocrm_webhook_secret_file or Path(".secrets/espocrm_webhook_secret"),
+            target,
+        )
+    )
 
 
 @app.command()
@@ -67,7 +76,7 @@ def seed(
     book = generate(accounts=accounts, seed=seed)
     ids = load(book, Espo(settings.espocrm_url, admin=("admin", password)), factory.odoo(settings, admin=True))
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({**book.as_dict(), "ids": ids}, indent=1), encoding="utf-8")
+    out.write_text(json.dumps({**book.as_dict(), "ids": ids}, indent=1), encoding="utf-8", newline="\n")
     _print(book.manifest())
 
 
@@ -79,6 +88,73 @@ def sync(full: Annotated[bool, typer.Option(help="ignore the cursor and look at 
     settings = get_settings()
     engine = SyncEngine(factory.crm(settings), factory.erp(settings), factory.store(settings))
     _print(engine.run(full=full).summary())
+
+
+@app.command("billing-status")
+def billing_status() -> None:
+    """Write the ERP's billing status (invoiced, partial, paid, overdue) back to the CRM where it differs."""
+    from hub.sync.engine import SyncEngine
+
+    settings = get_settings()
+    _print(SyncEngine(factory.crm(settings), factory.erp(settings), factory.store(settings)).refresh_billing_status())
+
+
+@app.command()
+def recon(tickets: Annotated[bool, typer.Option(help="file and close tickets")] = True) -> None:
+    """Compare both systems in full; store the exceptions; route them to the ticket system."""
+    from hub.recon.run import run_reconciliation
+
+    settings = get_settings()
+    sink = factory.tickets(settings) if tickets else None
+    stats, _ = run_reconciliation(factory.crm(settings), factory.erp(settings), factory.store(settings), sink)
+    _print(stats)
+
+
+@app.command("recon-eval")
+def recon_eval(
+    per_class: Annotated[int, typer.Option(min=1, max=50)] = 8,
+    seed: Annotated[int, typer.Option()] = 1,
+    book: Annotated[Path, typer.Option(help="the seed file, for the deals that carry data problems")] = Path(
+        "data/seed.json"
+    ),
+    out: Annotated[Path, typer.Option()] = Path("reports/recon/eval.json"),
+) -> None:
+    """The measured scenario: payments, faults injected at known counts, precision and recall, tickets (test harness)."""
+    from hub.connectors.espocrm import Espo
+    from hub.connectors.odoo import OdooErp
+    from hub.recon.scenario import evaluate
+
+    settings = get_settings()
+    password = os.environ.get("ESPOCRM_ADMIN_PASSWORD")
+    if not password:
+        raise typer.BadParameter("ESPOCRM_ADMIN_PASSWORD is not set (see .env)")
+    natural = None
+    if book.is_file():
+        data = json.loads(book.read_text(encoding="utf-8"))
+        problems = [d["key"] for d in data["deals"] if d["stage"] == "Closed Won" and d.get("data_problem")]
+        natural = {("missing_invoice", data["ids"]["deals"][k]) for k in problems}
+    report = evaluate(
+        factory.crm(settings),
+        factory.erp(settings),
+        OdooErp(factory.odoo(settings, admin=True)),
+        Espo(settings.espocrm_url, admin=("admin", password)),
+        factory.store(settings),
+        factory.tickets(settings),
+        per_class=per_class,
+        seed=seed,
+        natural=natural,
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8", newline="\n")
+    _print({k: report[k] for k in ("injected", "score", "tickets_first_run", "tickets_rerun", "after_repair")})
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8000, workers: int = 1) -> None:
+    """Run the API (the container runs uvicorn directly)."""
+    import uvicorn
+
+    uvicorn.run("hub.api.main:app", host=host, port=port, workers=workers)
 
 
 @app.command("dead-letters")
