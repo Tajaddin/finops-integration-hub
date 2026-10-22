@@ -79,6 +79,7 @@ jobs:
           o = r["score"]["overall"]
           assert o["precision"] == 1.0 and o["recall"] == 1.0, r["score"]
           assert r["tickets_rerun"]["opened"] == 0, r["tickets_rerun"]
+          assert r["baseline"]["book_data_problems_all_found"], r["baseline"]
           print(json.dumps({"score": o, "first": r["tickets_first_run"], "rerun": r["tickets_rerun"]}))
           PY
           docker compose start hub

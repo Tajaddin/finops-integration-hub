@@ -60,7 +60,8 @@ def evaluate(
     seed: int = 1,
     natural: set[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """`natural`: exceptions the book carries by design (deals with data problems), part of the ground truth."""
+    """`natural`: the exceptions this book carries by design (deals with data problems); checked against the
+    measured baseline, which is what joins the injected faults in the ground truth."""
     report: dict[str, Any] = {"per_class_injected": per_class, "seed": seed}
     engine = SyncEngine(crm, erp, store)
 
@@ -68,7 +69,13 @@ def evaluate(
     report["status_refresh_before"] = engine.refresh_billing_status()
     baseline, base_exc = run_reconciliation(crm, erp, store, None)
     report["baseline"] = {"exceptions": baseline["exceptions"], "by_kind": baseline["by_kind"]}
-    natural = natural if natural is not None else {(e.kind, e.key) for e in base_exc if e.kind == "missing_invoice"}
+    # Whatever is wrong before any fault is injected is part of the truth: on a fresh book that is exactly the deals
+    # with data problems; on a shared stack it also includes other books' (the CI integration test leaves some).
+    before = {(e.kind, e.key) for e in base_exc}
+    if natural is not None:
+        report["baseline"]["book_data_problems_all_found"] = natural <= before
+        report["baseline"]["exceptions_not_from_this_book"] = len(before - natural)
+    natural = before
 
     deals = list(crm.deals())
     truth = inject(crm.name, deals, store.links(crm.name), espo_admin, erp_admin, per_class=per_class, seed=seed)
