@@ -280,11 +280,33 @@ class Store:
             assert row is not None
             return int(row["id"])
 
+    def claim_triage_ticket(self, run_id: int, seconds: int = 300) -> dict[str, Any] | None:
+        """Take the job of filing this run's ticket for `seconds`; the run, or None when its ticket is already filed
+        or another request holds the job."""
+        with self.connect() as conn:
+            return conn.execute(
+                """UPDATE triage_run SET ticket_filing_until = now() + %s * interval '1 second'
+                   WHERE id = %s AND ticket_noted_at IS NULL
+                     AND (ticket_filing_until IS NULL OR ticket_filing_until < now())
+                   RETURNING *""",
+                (seconds, run_id),
+            ).fetchone()
+
+    def release_triage_ticket(self, run_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE triage_run SET ticket_filing_until = NULL WHERE id = %s", (run_id,))
+
     def set_triage_ticket(self, run_id: int, system: str, ticket_id: str, ref: str) -> None:
         with self.connect() as conn:
             conn.execute(
                 "UPDATE triage_run SET ticket_system = %s, ticket_id = %s, ticket_ref = %s WHERE id = %s",
                 (system, ticket_id, ref, run_id),
+            )
+
+    def triage_ticket_noted(self, run_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE triage_run SET ticket_noted_at = now(), ticket_filing_until = NULL WHERE id = %s", (run_id,)
             )
 
     def triage_by_key(self, idempotency_key: str) -> dict[str, Any] | None:

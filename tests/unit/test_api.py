@@ -17,7 +17,9 @@ from pydantic import SecretStr
 from hub.api.app import Deps, create_app
 from hub.api.security import WebhookSecret, espocrm_signature, verify_espocrm
 from hub.config import Settings
+from hub.connectors.http import ApiError
 from hub.store import Store
+from hub.tickets import Ticket
 from tests.fakes import FakeCrm, FakeErp, make_deal
 
 KEY = "local-dev-key-0000000000000000"
@@ -148,6 +150,64 @@ def test_triage_is_idempotent_per_key_and_decisions_are_recorded_once(store: Sto
         == "approved"
     )
     assert client.post(f"/v1/triage/{first['id']}/decision", json=decide, headers={"X-API-Key": KEY}).status_code == 409
+
+
+class FlakySink:
+    """A ticket system that can be told to fail opening a ticket or adding a note, as Zammad does when it is down."""
+
+    name = "flaky"
+
+    def __init__(self) -> None:
+        self.tickets: dict[str, list[str]] = {}  # ticket id -> notes
+        self.fail_open = self.fail_note = False
+
+    def open(
+        self, title: str, body: str, *, queue: str, priority: str, tags: list[str], customer: str | None = None
+    ) -> Ticket:
+        if self.fail_open:
+            raise ApiError("flaky", 503, "maintenance")
+        tid = str(len(self.tickets) + 1)
+        self.tickets[tid] = []
+        return Ticket(tid, f"#{tid}")
+
+    def note(self, ticket_id: str, body: str) -> None:
+        if self.fail_note:
+            raise ApiError("flaky", 503, "maintenance")
+        self.tickets[ticket_id].append(body)
+
+
+def triage_client(store: Store, sink: FlakySink) -> tuple[TestClient, FakeTriage]:
+    fake = FakeTriage()
+    settings = Settings(api_key=SecretStr(KEY), _env_file=None)  # type: ignore[call-arg]
+    deps = Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=store, tickets=lambda: sink, triage=lambda: fake)
+    return TestClient(create_app(settings, deps), raise_server_exceptions=False), fake
+
+
+@pytest.mark.parametrize("failing", ["fail_open", "fail_note"])
+def test_a_retry_files_the_ticket_the_first_call_could_not(store: Store, failing: str) -> None:
+    sink = FlakySink()
+    client, fake = triage_client(store, sink)
+    h = {"X-API-Key": KEY, "Idempotency-Key": "n8n-7"}
+    body = {"message": "refund $4,800.00 please", "sender": "a@example.com"}
+    setattr(sink, failing, True)
+    assert client.post("/v1/triage", json=body, headers=h).status_code == 500
+    setattr(sink, failing, False)
+    again = client.post("/v1/triage", json=body, headers=h).json()
+    assert again["replay"] is True and again["ticket"] == "#1" and fake.runs == 1
+    assert len(sink.tickets) == 1 and len(sink.tickets["1"]) == 1, "one ticket with one draft note, however it failed"
+    assert "needs finance approval" in sink.tickets["1"][0]
+    assert client.post("/v1/triage", json=body, headers=h).json()["ticket"] == "#1"
+    assert len(sink.tickets) == 1 and len(sink.tickets["1"]) == 1
+
+
+def test_only_one_request_at_a_time_may_file_a_runs_ticket(store: Store) -> None:
+    run_id = store.save_triage("a@example.com", "refund", {"needs_approval": True}, "k1")
+    assert store.claim_triage_ticket(run_id) is not None
+    assert store.claim_triage_ticket(run_id) is None, "a second request while the first is filing"
+    store.release_triage_ticket(run_id)
+    assert store.claim_triage_ticket(run_id) is not None
+    store.triage_ticket_noted(run_id)
+    assert store.claim_triage_ticket(run_id) is None, "filed: nothing left to claim"
 
 
 def bare_app(**settings: object) -> FastAPI:

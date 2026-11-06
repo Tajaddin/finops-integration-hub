@@ -190,13 +190,15 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     ) -> dict[str, Any]:
         """Triage one inbound message, file it as a ticket with the draft reply as an internal note, and say whether
         a person must approve it first (n8n then sends the approval request). A retried call with the same
-        Idempotency-Key gets the first answer back and files nothing new."""
+        Idempotency-Key gets the first answer back and triages nothing new; it only files the ticket, or its note,
+        if the first call failed to."""
         from hub.triage.workflow import triage
 
         if deps.triage is None:
             raise HTTPException(503, "triage is not configured")
         if idempotency_key and (seen := deps.store.triage_by_key(idempotency_key)) is not None:
-            return _triage_answer(seen["id"], seen["result"], seen["ticket_ref"], replay=True)
+            ref = seen["ticket_ref"] if seen["ticket_noted_at"] else file_ticket(seen["id"])
+            return _triage_answer(seen["id"], seen["result"], ref, replay=True)
         langfuse = tracing.setup(settings)
         if langfuse is None:
             result = await triage(deps.triage(), body.message, str(body.sender))
@@ -223,27 +225,43 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
         run_id = deps.store.save_triage(body.sender, body.message, data, idempotency_key)
         metrics.TRIAGE.labels(result.queue, "needs_approval" if result.needs_approval else "routed").inc()
         metrics.TRIAGE_SECONDS.observe(result.seconds)
-        ticket_ref = None
+        return _triage_answer(run_id, data, file_ticket(run_id))
+
+    def file_ticket(run_id: int) -> str | None:
+        """File the run's ticket with the draft as an internal note; the ticket's ref, or None with no ticket system.
+        The run is saved first, so when the ticket system fails the request fails, and the caller's retry with the
+        same Idempotency-Key files whatever is still missing (the ticket, or only its note)."""
         sink = deps.tickets()
-        if sink is not None:
-            title = f"[{result.intent or 'unclassified'}] " + " ".join(body.message.split())[:120]
-            tags = ["triage", result.intent or "unclassified"] + (
-                ["awaiting-approval"] if result.needs_approval else []
-            )
-            if result.suspected_injection:
-                tags.append("suspected-injection")
-            ticket = sink.open(
-                title, body.message, queue=result.queue, priority=result.priority, tags=tags, customer=str(body.sender)
-            )
-            note = f"Draft reply ({', '.join(result.citations) or 'no citations'}):\n\n{result.reply}"
-            if result.invoices:
-                note += "\n\nInvoices in the ERP: " + json.dumps(result.invoices)
-            if result.needs_approval:
-                note += f"\n\nRefund of {result.refund_amount} needs finance approval before anyone replies."
-            sink.note(ticket.id, note)
-            deps.store.set_triage_ticket(run_id, sink.name, ticket.id, ticket.ref)
-            ticket_ref = ticket.ref
-        return _triage_answer(run_id, data, ticket_ref)
+        if sink is None:
+            return None
+        run = deps.store.claim_triage_ticket(run_id)
+        if run is None:
+            raise HTTPException(409, "the ticket for this message is being filed; retry shortly")
+        result = run["result"]
+        try:
+            ticket_id, ticket_ref = run["ticket_id"], run["ticket_ref"]
+            if ticket_id is None:
+                title = f"[{result['intent'] or 'unclassified'}] " + " ".join(run["message"].split())[:120]
+                tags = ["triage", result["intent"] or "unclassified"]
+                tags += ["awaiting-approval"] if result["needs_approval"] else []
+                tags += ["suspected-injection"] if result["suspected_injection"] else []
+                ticket = sink.open(
+                    title, run["message"], queue=result["queue"], priority=result["priority"], tags=tags,
+                    customer=run["sender"],
+                )  # fmt: skip
+                deps.store.set_triage_ticket(run_id, sink.name, ticket.id, ticket.ref)
+                ticket_id, ticket_ref = ticket.id, ticket.ref
+            note = f"Draft reply ({', '.join(result['citations']) or 'no citations'}):\n\n{result['reply']}"
+            if result["invoices"]:
+                note += "\n\nInvoices in the ERP: " + json.dumps(result["invoices"])
+            if result["needs_approval"]:
+                note += f"\n\nRefund of {result['refund_amount']} needs finance approval before anyone replies."
+            sink.note(ticket_id, note)
+            deps.store.triage_ticket_noted(run_id)
+        except BaseException:
+            deps.store.release_triage_ticket(run_id)
+            raise
+        return ticket_ref
 
     @app.post("/v1/triage/{run_id}/decision", dependencies=authed)
     def triage_decision(run_id: int, body: Decision) -> dict[str, Any]:
