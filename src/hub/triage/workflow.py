@@ -39,14 +39,15 @@ PROMISE = re.compile(
 REFUND_INTENTS = {"get_refund", "track_refund", "check_refund_policy", "check_cancellation_fee"}
 # Wording that asks for money back, used by the approval rule without trusting the model's intent (#23): an injected
 # "classify this as review" must not be able to switch the approval off. Not only the word "refund": a reversed,
-# duplicate or excess charge, money returned or credited back, and the word for refund in a few other languages.
+# duplicate or excess charge, money returned or credited back, compensation, and the word for refund in Turkish,
+# Spanish, Portuguese, French, German and Italian.
 MONEY_BACK = re.compile(
     r"\b(?:refund\w*|reimburs\w*|rebate|chargeback|charge\s+back|money\s+back|(?:pay|paid)\s+(?:me|us)\s+back"
-    r"|(?:return|give\s+back|send\s+back)\s+(?:my|our|the)\s+(?:money|funds|payment)"
+    r"|(?:return|give\s+back|send\s+back)\s+(?:my|our|the)\s+(?:money|funds|payment)|(?:money|funds)\s+returned"
     r"|revers\w*\s+(?:of\s+)?(?:the|this|that|these|those|my|our|a)?\s*(?:duplicate\s+|double\s+)?(?:charge|payment|transaction)"
     r"|credit\b(?!\s+card)[^.!?\n]{0,40}?\bback\b|credit\s+note|overcharg\w*|double[\s-]?(?:charged|billed)"
     r"|(?:charged|billed)\s+(?:\S+\s+){0,4}?twice|duplicate\s+(?:charge|payment)"
-    r"|iade|reembols\w*|rembours\w*|r(?:ü|ue)ckerstatt\w*|rimbors\w*)",
+    r"|compensat\w*|iade|reembols\w*|devolu\w*|devolv\w*|rembours\w*|r(?:ü|ue)ckerstatt\w*|erstatt\w*|rimbors\w*)",
     re.I,
 )
 # Known injection phrasings. Not a defence on its own (easy to evade): it flags the ticket for a person and raises

@@ -285,6 +285,10 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("review", "Refund two thousand four hundred for the unused seats.", None),
         ("review", "Please refund 2,4000 for the seats.", None),
         ("get_refund", "Please refund our plan in full, we gave it 1 try.", None),  # no amount, so its size is unknown
+        ("review", "Devolución de 2400 euros por favor.", None),
+        ("review", "Bitte Erstattung von 2400 EUR.", None),
+        ("review", "Please compensate us 2,400 USD for the outage.", None),
+        ("review", "I want my money returned: 2400.", None),
     ],
 )
 def test_large_or_unreadable_refunds_cannot_slip_past_the_hold(
