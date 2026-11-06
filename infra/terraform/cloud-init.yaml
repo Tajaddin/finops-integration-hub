@@ -3,7 +3,7 @@
 # starts the stack. With a webhook domain, Caddy terminates TLS and forwards only /webhooks/espocrm (to the hub)
 # and /webhook/billing-message (to n8n); everything else stays on 127.0.0.1.
 package_update: true
-packages: [ca-certificates, curl, gnupg, git, make, python3]
+packages: [ca-certificates, curl, gnupg, git, make, python3, acl]
 write_files:
   # the hub container reaches Ollama through the docker bridge; the VM's security list keeps 11434 closed outside
   - path: /etc/systemd/system/ollama.service.d/listen.conf
@@ -36,7 +36,11 @@ runcmd:
   - chown -R ubuntu:ubuntu /opt/finops
   - cd /opt/finops && sudo -u ubuntu python3 scripts/make_env.py
   - cd /opt/finops && sudo -u ubuntu sed -i 's/^HUB_TRIAGE_MODEL=.*/HUB_TRIAGE_MODEL=${triage_model}/' .env
-  - cd /opt/finops && mkdir -p data/triage && chmod 777 data/triage .secrets
+  # Only the containers that write these folders may: data/triage (the baseline the hub loads) is the hub's (uid
+  # 10001, docker/hub.Dockerfile); .secrets also takes keys from Odoo's bootstrap (the odoo image's user) and
+  # Zammad's (root). Nobody else on the VM can write either, or read .secrets.
+  - cd /opt/finops && install -d -o 10001 -g 10001 -m 0755 data/triage
+  - cd /opt/finops && odoo_uid=$(sudo -u ubuntu COMPOSE_PROFILES=core docker compose run --rm --no-deps -T --entrypoint id odoo-init -u) && test -n "$odoo_uid" && chmod 0750 .secrets && setfacl -m "u:10001:rwx,u:$odoo_uid:rwx" .secrets
   - cd /opt/finops && sudo -u ubuntu COMPOSE_PROFILES=core,tickets,automation,llm,obs docker compose up -d --wait --wait-timeout 1200
   # one-time setup inside the hub image (it carries the CLI): migrations, EspoCRM's fields, role, API user and
   # webhook, and the triage baseline and indexes (downloads the Bitext set once)
