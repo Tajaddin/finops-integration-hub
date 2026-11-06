@@ -21,8 +21,10 @@ jobs:
     name: ruff and mypy
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
       - run: uv sync --locked --all-extras
       - run: uv run ruff check . && uv run ruff format --check .
@@ -32,12 +34,14 @@ jobs:
     name: unit and contract tests (coverage)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
       - run: uv sync --locked --all-extras
       - run: uv run pytest -m "not integration" --cov --cov-report=xml --cov-report=term
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: coverage, path: coverage.xml, retention-days: 14 }
 
   integration:
@@ -47,8 +51,10 @@ jobs:
       COMPOSE_PROFILES: core,tickets,automation
       HUB_TRIAGE_MODEL: fake   # a deterministic stand-in: CI tests the wiring; reports/triage/ measures the model
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
       - run: uv sync --locked --all-extras
       - name: triage baseline (Bitext from Hugging Face, trained on the runner)
@@ -92,7 +98,7 @@ jobs:
         run: |
           uv run python scripts/export_n8n.py
           git diff --exit-code -- n8n/workflows
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with: { name: integration-reports, path: .ci/, retention-days: 14 }
       - if: failure()
@@ -102,7 +108,9 @@ jobs:
     name: alert rules (promtool) and dashboard
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: rules check and unit tests
         run: |
           docker run --rm -v "$PWD/observability:/w" -w /w --entrypoint promtool prom/prometheus:v3.5.0 check rules alert_rules.yml
@@ -117,8 +125,10 @@ jobs:
       run:
         working-directory: infra/terraform
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with: { terraform_version: "1.16.6" }
       - run: terraform fmt -check -recursive
       - run: terraform init -backend=false -input=false && terraform validate
@@ -131,7 +141,9 @@ jobs:
     name: hub image build and scan
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - run: docker build -f docker/hub.Dockerfile -t finops-integration-hub:ci .
       - name: trivy (vulnerabilities with a fix)
         run: |
@@ -146,8 +158,10 @@ jobs:
     env:
       SF_DISABLE_TELEMETRY: "true"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: "22" }
       - run: npx --yes @salesforce/cli@2 project convert source --root-dir force-app --output-dir "$RUNNER_TEMP/mdapi"
         working-directory: salesforce
@@ -157,11 +171,11 @@ jobs:
     name: gitleaks and pip-audit
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { fetch-depth: 0, persist-credentials: false }
       - name: gitleaks (history and tree)
         run: bash scripts/secret_scan.sh
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with: { version: "${{ env.UV_VERSION }}", enable-cache: true }
       - run: uv sync --locked --all-extras
       - run: uv run pip-audit --skip-editable --progress-spinner off
