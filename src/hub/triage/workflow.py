@@ -14,6 +14,7 @@ attached is made in code, so a message that tells the model to approve something
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -202,7 +203,7 @@ class TriageWorkflow(Workflow):
         invoices: list[dict[str, Any]] = []
         if ev.intent in labels.LOOKS_UP_INVOICES:
             for number in dict.fromkeys(money.INVOICE_NUMBER.findall(ev.text)):
-                found = self.lookup_invoice(number, ev.sender)
+                found = await asyncio.to_thread(self.lookup_invoice, number, ev.sender)  # an ERP round trip
                 invoices.append(found or {"number": number, "found": False})
         return Enriched(**ev.model_dump(), invoices=invoices)
 
@@ -230,7 +231,7 @@ class TriageWorkflow(Workflow):
         return StopEvent(result=result)
 
     async def _draft(self, text: str, result: TriageResult) -> None:
-        nodes = self.kb.retrieve(text)
+        nodes = await asyncio.to_thread(self.kb.retrieve, text)  # an embedding call and a pgvector query
         articles = {n.node.metadata["kb_id"]: n.node.get_content() for n in nodes}
         facts = json.dumps(result.invoices) if result.invoices else "none"
         rule = (

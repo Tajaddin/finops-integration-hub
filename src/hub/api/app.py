@@ -12,7 +12,8 @@
 | POST /webhooks/espocrm | EspoCRM | HMAC signature |
 
 Everything that touches a system is synchronous inside a worker thread (FastAPI runs plain `def` endpoints in its
-thread pool); a CRM webhook is acknowledged at once and processed in the background.
+thread pool, and the two `async` ones hand each blocking call to the same pool, so a slow ERP or ticket system never
+stalls the event loop); a CRM webhook is acknowledged at once and processed in the background.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
 from hub import log, metrics, tracing
@@ -196,12 +198,14 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
 
         if deps.triage is None:
             raise HTTPException(503, "triage is not configured")
-        if idempotency_key and (seen := deps.store.triage_by_key(idempotency_key)) is not None:
-            ref = seen["ticket_ref"] if seen["ticket_noted_at"] else file_ticket(seen["id"])
+        seen = await run_in_threadpool(deps.store.triage_by_key, idempotency_key) if idempotency_key else None
+        if seen is not None:
+            ref = seen["ticket_ref"] if seen["ticket_noted_at"] else await run_in_threadpool(file_ticket, seen["id"])
             return _triage_answer(seen["id"], seen["result"], ref, replay=True)
+        workflow = await run_in_threadpool(deps.triage)  # built (indexes, model clients) on first use
         langfuse = tracing.setup(settings)
         if langfuse is None:
-            result = await triage(deps.triage(), body.message, str(body.sender))
+            result = await triage(workflow, body.message, str(body.sender))
         else:  # one trace per turn; LlamaIndex's retrieval and LLM calls nest under it (OpenInference)
             from langfuse import propagate_attributes
 
@@ -211,7 +215,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
                 ) as span,
                 propagate_attributes(user_id=tracing.sender_id(str(body.sender)), trace_name="triage", tags=["triage"]),
             ):
-                result = await triage(deps.triage(), body.message, str(body.sender))
+                result = await triage(workflow, body.message, str(body.sender))
                 span.update(
                     output={
                         "intent": result.intent,
@@ -222,10 +226,10 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
                     metadata={"path": result.path, "citations": result.citations, "replaced": result.reply_replaced},
                 )
         data = result.as_dict()
-        run_id = deps.store.save_triage(body.sender, body.message, data, idempotency_key)
+        run_id = await run_in_threadpool(deps.store.save_triage, body.sender, body.message, data, idempotency_key)
         metrics.TRIAGE.labels(result.queue, "needs_approval" if result.needs_approval else "routed").inc()
         metrics.TRIAGE_SECONDS.observe(result.seconds)
-        return _triage_answer(run_id, data, file_ticket(run_id))
+        return _triage_answer(run_id, data, await run_in_threadpool(file_ticket, run_id))
 
     def file_ticket(run_id: int) -> str | None:
         """File the run's ticket with the draft as an internal note; the ticket's ref, or None with no ticket system.
@@ -295,7 +299,9 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
         except (ValueError, TypeError) as exc:
             metrics.WEBHOOKS.labels("espocrm", "malformed").inc()
             raise HTTPException(422, "expected a JSON array of records with an id") from exc
-        if not deps.store.accept_delivery(hashlib.sha256(body).hexdigest(), "espocrm", len(records)):
+        if not await run_in_threadpool(
+            deps.store.accept_delivery, hashlib.sha256(body).hexdigest(), "espocrm", len(records)
+        ):
             metrics.WEBHOOKS.labels("espocrm", "replay").inc()
             return {"accepted": 0, "replay": True}
         metrics.WEBHOOKS.labels("espocrm", "accepted").inc()

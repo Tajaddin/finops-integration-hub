@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -357,3 +358,50 @@ def test_an_invoice_is_shown_only_to_its_customer(sender: str | None, shown: boo
     else:
         assert found is None
     assert odoo.models == ([] if sender is None else ["account.move", "res.partner"])
+
+
+class Waits:
+    """A blocking call (an HTTP or database round trip) that waits up to 2 s for the event loop to answer: it gets
+    an answer only if it runs off the loop."""
+
+    def __init__(self) -> None:
+        self.started, self.answered = threading.Event(), threading.Event()
+        self.loop_was_free: list[bool] = []
+
+    def __call__(self) -> None:
+        self.started.set()
+        self.loop_was_free.append(self.answered.wait(2))
+
+    async def answer(self) -> None:
+        while not self.started.is_set():
+            await asyncio.sleep(0.01)
+        self.answered.set()
+
+
+class WaitingRetriever:
+    def __init__(self, inner: Any, waits: Waits) -> None:
+        self.inner, self.waits = inner, waits
+
+    def retrieve(self, text: str) -> Any:
+        self.waits()
+        return self.inner.retrieve(text)
+
+
+@pytest.mark.parametrize("seam", ["invoice lookup", "help-centre retrieval", "example retrieval"])
+def test_blocking_calls_run_off_the_event_loop(seam: str) -> None:
+    waits = Waits()
+    wf = workflow(
+        fresh_llm(intents={"bill": "get_invoice"}), [], threshold=1.01 if seam == "example retrieval" else 0.0
+    )
+    if seam == "invoice lookup":
+        wf.lookup_invoice = lambda _number, _sender: waits()
+    elif seam == "help-centre retrieval":
+        wf.kb = WaitingRetriever(wf.kb, waits)  # type: ignore[assignment]
+    else:
+        wf.classifier.retriever = WaitingRetriever(wf.classifier.retriever, waits)  # type: ignore[assignment]
+
+    async def both() -> None:
+        await asyncio.gather(triage(wf, "I need a copy of my bill INV/2026/00042", "ap@acme.example"), waits.answer())
+
+    asyncio.run(both())
+    assert waits.loop_was_free == [True]

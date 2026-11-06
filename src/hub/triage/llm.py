@@ -4,6 +4,7 @@ guess. Token counts and latency come back with every verdict so cost can be comp
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -105,7 +106,7 @@ class LlmClassifier:
         return [(n.node.get_content(), str(n.node.metadata["intent"])) for n in self.retriever.retrieve(text)]
 
     async def aclassify(self, text: str) -> Verdict:
-        shots = self.examples(text)
+        shots = await asyncio.to_thread(self.examples, text)  # an embedding call and a pgvector query
         prompt = few_shot_prompt(text, shots) if shots else zero_shot_prompt(text)
         t0 = time.perf_counter()
         response = await self.llm.acomplete(prompt)

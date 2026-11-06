@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -237,3 +238,57 @@ def test_an_oversized_webhook_is_refused_while_it_streams_in() -> None:
 def test_the_default_rate_limit_applies_to_every_route() -> None:
     client = TestClient(bare_app(rate_limit="2/minute"))
     assert [client.get("/health").status_code for _ in range(3)] == [200, 200, 429]
+
+
+class MemoryStore:
+    """Just what the triage endpoint writes, kept in memory."""
+
+    def __init__(self) -> None:
+        self.runs: dict[int, dict[str, object]] = {}
+
+    def save_triage(self, sender: str, message: str, result: dict[str, object], key: str | None = None) -> int:
+        self.runs[len(self.runs) + 1] = {"sender": str(sender), "message": message, "result": result}
+        return len(self.runs)
+
+    def claim_triage_ticket(self, run_id: int) -> dict[str, object]:
+        return {"id": run_id, "ticket_id": None, "ticket_ref": None, **self.runs[run_id]}
+
+    def set_triage_ticket(self, run_id: int, system: str, ticket_id: str, ref: str) -> None:
+        pass
+
+    def triage_ticket_noted(self, run_id: int) -> None:
+        pass
+
+
+def test_triage_does_not_block_the_event_loop() -> None:
+    started, answered, loop_was_free = threading.Event(), threading.Event(), []
+
+    class SlowSink(FlakySink):  # Zammad taking its time: it can only finish if the loop answers /health meanwhile
+        def open(self, *args: object, **kwargs: object) -> Ticket:
+            started.set()
+            loop_was_free.append(answered.wait(2))
+            return super().open(*args, **kwargs)  # type: ignore[arg-type]
+
+    settings = Settings(api_key=SecretStr(KEY), _env_file=None)  # type: ignore[call-arg]
+    deps = Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=MemoryStore(), tickets=SlowSink, triage=FakeTriage)  # type: ignore[arg-type]
+
+    async def both() -> list[httpx.Response]:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=create_app(settings, deps)), base_url="http://hub"
+        ) as client:
+
+            async def health() -> httpx.Response:
+                while not started.is_set():
+                    await asyncio.sleep(0.01)
+                r = await client.get("/health")
+                answered.set()
+                return r
+
+            body = {"message": "refund $4,800.00 please", "sender": "a@example.com"}
+            return list(
+                await asyncio.gather(client.post("/v1/triage", json=body, headers={"X-API-Key": KEY}), health())
+            )
+
+    triaged, healthy = asyncio.run(both())
+    assert (triaged.status_code, triaged.json()["ticket"], healthy.status_code) == (200, "#1", 200)
+    assert loop_was_free == [True]
