@@ -93,13 +93,14 @@ def belongs_to(sender: str, partner: dict[str, Any]) -> bool:
     return site is not None and domain == site
 
 
-def invoice_lookup(erp: OdooErp) -> Callable[[str, str | None], dict[str, Any] | None]:
+def invoice_lookup(erp: OdooErp, *, check_owner: bool = True) -> Callable[[str, str | None], dict[str, Any] | None]:
     """Read one invoice by its number, for the sender of the message. Read-only, the workflow only passes numbers
     written in the message, and another customer's invoice reads as not found: a message that names someone else's
-    invoice number learns nothing about it."""
+    invoice number learns nothing about it. `check_owner=False` is for the evaluation sets only: their messages have
+    no sender, and their drafts should carry the invoice facts a customer asking about their own invoice gets."""
 
     def lookup(number: str, sender: str | None) -> dict[str, Any] | None:
-        if not sender:
+        if check_owner and not sender:
             return None
         rows = erp.odoo.search_read(
             "account.move", [["move_type", "=", "out_invoice"], ["name", "=", number]], INVOICE_FIELDS, limit=1
@@ -107,9 +108,10 @@ def invoice_lookup(erp: OdooErp) -> Callable[[str, str | None], dict[str, Any] |
         if not rows:
             return None
         inv = to_invoice(rows[0])
-        partner = erp.odoo.search_read("res.partner", [["id", "=", inv.partner_id]], ["website", "email"], limit=1)
-        if not partner or not belongs_to(sender, partner[0]):
-            return None
+        if check_owner:
+            partner = erp.odoo.search_read("res.partner", [["id", "=", inv.partner_id]], ["website", "email"], limit=1)
+            if not partner or not belongs_to(sender or "", partner[0]):
+                return None
         return {
             "number": inv.number,
             "found": True,

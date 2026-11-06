@@ -293,7 +293,7 @@ class TriageWorkflow(Workflow):
 
 async def triage(workflow: TriageWorkflow, message: str, sender: str | None = None) -> TriageResult:
     """Run one message through the workflow; `seconds` is the whole run (the workflow's own timeout applies). Without
-    a sender no invoice is shown (the evaluation sets have none)."""
+    a sender the API's invoice lookup shows no invoice; the evaluation sets have none and use one that does."""
     t0 = time.perf_counter()
     result: TriageResult = await workflow.run(message=message, sender=sender)
     result.seconds = round(time.perf_counter() - t0, 3)

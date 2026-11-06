@@ -364,6 +364,17 @@ class FakeOdoo:
         return [{"id": 3, "website": "https://www.acme.example/", "email": "billing@acme-group.example"}]
 
 
+def test_the_evaluation_reads_invoices_as_their_own_customer_would() -> None:
+    # the eval sets have no sender; their recorded runs were measured with invoice facts in the drafts
+    from hub.connectors.odoo import OdooErp
+    from hub.triage.runtime import invoice_lookup
+
+    odoo = FakeOdoo()
+    found = invoice_lookup(OdooErp(odoo), check_owner=False)("INV/2026/00042", None)  # type: ignore[arg-type]
+    assert found is not None and found["amount_untaxed"] == "1200.00"
+    assert odoo.models == ["account.move"]
+
+
 def test_a_customer_with_no_email_or_website_matches_nobody() -> None:
     from hub.triage.runtime import belongs_to
 
