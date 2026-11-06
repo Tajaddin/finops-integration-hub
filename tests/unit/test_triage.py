@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -231,10 +232,22 @@ def test_guards_replace_parroted_answers_and_outside_addresses() -> None:
         ("Refund £950 for INV/2026/00950", 950.0),  # the invoice number is not an amount
         ("Refund 2.400,- EUR for the unused seats.", 2400.0),
         ("We will try 3 more times; else refund EUR 95.00.", 95.0),  # "try" is not a currency
+        ("Refund...2 400 USD please.", 2400.0),  # punctuation before a number, not a digit, does not hide it
     ],
 )
 def test_money_is_read_in_every_common_format(text: str, value: float) -> None:
     assert amount_in(text) == value
+
+
+@pytest.mark.parametrize("run", ["123 ", "1'", "a ", "one ", "a few "])
+def test_reading_money_takes_linear_time(run: str) -> None:
+    # a 4,000-character message (the API's limit) of one repeated pattern: the patterns retried such a run from every
+    # group or word, up to 2 s per call on a run of digit groups, all of it on the event loop
+    text = "refund " + (run * 4000)[:4000]
+    start = time.perf_counter()
+    needs_approval("review", text, 1.0, 500)
+    amount_in(text)
+    assert time.perf_counter() - start < 0.25
 
 
 # The approval rule against messages written to slip past it (audit 2026-11): spaced and European amounts, k

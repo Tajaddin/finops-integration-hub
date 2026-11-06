@@ -16,8 +16,10 @@ INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
 _SYMBOL = r"(?:(?:US|CA|AU|NZ|HK|SG|C|A|R|S)?\$|[€£¥₹₺₼])"
 _CODE = r"(?:USD|EUR|GBP|CAD|AUD|NZD|CHF|JPY|CNY|INR|TRY|AZN|SEK|NOK|DKK|PLN|MXN|BRL|ZAR|SGD|HKD|AED)"
 _WORD = r"(?:dollars?|dolar(?:es)?|bucks|euros?|pounds?|quid|yen|lira|manat|rupees?)"
-# digits joined by separators; a space (of any width) only before a group of exactly three digits ("2 400", not "40 2026")
-_NUMBER = r"(?<![\d.,])\d+(?:(?:[.,'\u2019]|\s(?=\d{3}(?!\d)))\d+)*"
+# digits joined by separators; a space (of any width) only before a group of exactly three digits ("2 400", not "40 2026").
+# A number never starts inside another one ("123 456" is not tried again from "456"): a pattern that fails after a
+# long run of digit groups would otherwise retry from every group, quadratic in the message's length.
+_NUMBER = r"(?<!\d)(?<!\d[.,'\u2019])(?!(?<=\d\s)\d{3}(?!\d))\d+(?:(?:[.,'\u2019]|\s(?=\d{3}(?!\d)))\d+)*"
 _SUFFIX = r"(?:k|m|mn|bn|\s?thousand|\s?million|\s?billion|\s?grand)\b"
 _DASH = r"(?:[.,][-\N{EN DASH}])?"  # "2.400,- EUR", "CHF 1'200.-"
 MULTIPLIERS = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9, "billion": 1e9}
@@ -32,12 +34,13 @@ _CARDINAL = (
     r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?)"
 )
 _FILLER = r"(?:a|an|few|several|couple|of|and|some|many)"
-# a currency with words where the number should be: "two thousand dollars", "thousands of euros", "$ several hundred"
-WORDY = re.compile(
-    rf"\b(?:{_FILLER}[\s-]+)*{_CARDINAL}(?:[\s-]+(?:{_CARDINAL}|{_FILLER}))*[\s-]+(?:{_WORD}|grand|{_CODE})\b"
-    rf"|{_SYMBOL}\s*(?:{_FILLER}\s+)*{_CARDINAL}\b",
-    re.I,
-)
+# A currency with words where the number should be: "two thousand dollars", "thousands of euros", "$ several
+# hundred". A run of number words is matched whole and then checked for a cardinal and a currency after it, for the
+# same reason as _NUMBER: one pattern doing both would retry from every word of a long run.
+NUMBER_WORDS = re.compile(rf"\b(?:{_CARDINAL}|{_FILLER})\b(?:[\s-]+(?:{_CARDINAL}|{_FILLER})\b)*", re.I)
+CARDINAL = re.compile(rf"\b{_CARDINAL}\b", re.I)
+CURRENCY_AFTER_WORDS = re.compile(rf"[\s-]+(?:{_WORD}|grand|{_CODE})\b", re.I)
+SYMBOL_WORDS = re.compile(rf"{_SYMBOL}\s*(?:{_FILLER}\s+)*{_CARDINAL}\b", re.I)
 
 
 @dataclass(frozen=True)
@@ -99,7 +102,11 @@ def mentions(text: str) -> list[Mention]:
     text = _masked(text)
     found = [(m.start(), _mention(m)) for m in BEFORE.finditer(text)]
     found += [(m.start(), _mention(m)) for m in AFTER.finditer(text)]
-    found += [(m.start(), Mention(m.group(0), frozenset())) for m in WORDY.finditer(text)]
+    for m in NUMBER_WORDS.finditer(text):
+        currency = CURRENCY_AFTER_WORDS.match(text, m.end())
+        if currency and CARDINAL.search(m.group(0)):
+            found.append((m.start(), Mention(text[m.start() : currency.end()], frozenset())))
+    found += [(m.start(), Mention(m.group(0), frozenset())) for m in SYMBOL_WORDS.finditer(text)]
     return [mention for _, mention in sorted(found, key=lambda x: x[0])]
 
 
