@@ -38,6 +38,11 @@ RECON_LAST_RUN = Gauge(
 TICKETS = Counter("hub_tickets_total", "Ticket actions", ["system", "action"])
 WEBHOOKS = Counter("hub_webhook_deliveries_total", "CRM webhook deliveries by result", ["source", "result"])
 TRIAGE = Counter("hub_triage_messages_total", "Messages triaged, by queue and decision", ["queue", "decision"])
+TRIAGE_UNFILED = Gauge(
+    "hub_triage_unfiled",
+    "Triaged messages still without their ticket (or its draft note) 10 minutes after they came in",
+    multiprocess_mode="mostrecent",
+)
 TRIAGE_SECONDS = Histogram("hub_triage_seconds", "Time to triage one message", buckets=(0.25, 0.5, 1, 2, 4, 8, 16, 32))
 HTTP_SECONDS = Histogram(
     "hub_http_request_seconds",

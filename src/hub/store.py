@@ -292,9 +292,14 @@ class Store:
                 (seconds, run_id),
             ).fetchone()
 
-    def release_triage_ticket(self, run_id: int) -> None:
+    def release_triage_ticket(self, run_id: int, lease: datetime) -> None:
+        """Give the job back, if `lease` (the claim's ticket_filing_until) is still the one held: a request that
+        outlived its lease must not end the lease of the request that claimed the job after it."""
         with self.connect() as conn:
-            conn.execute("UPDATE triage_run SET ticket_filing_until = NULL WHERE id = %s", (run_id,))
+            conn.execute(
+                "UPDATE triage_run SET ticket_filing_until = NULL WHERE id = %s AND ticket_filing_until = %s",
+                (run_id, lease),
+            )
 
     def set_triage_ticket(self, run_id: int, system: str, ticket_id: str, ref: str) -> None:
         with self.connect() as conn:
@@ -308,6 +313,19 @@ class Store:
             conn.execute(
                 "UPDATE triage_run SET ticket_noted_at = now(), ticket_filing_until = NULL WHERE id = %s", (run_id,)
             )
+
+    def unfiled_triage_runs(self, older_than_seconds: int = 600) -> int:
+        """Runs saved more than `older_than_seconds` ago whose ticket, or its draft note, is still not filed, and
+        that a retry with their Idempotency-Key would file."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT count(*) AS n FROM triage_run
+                   WHERE ticket_noted_at IS NULL AND idempotency_key IS NOT NULL
+                     AND received_at < now() - %s * interval '1 second'""",
+                (older_than_seconds,),
+            ).fetchone()
+            assert row is not None
+            return int(row["n"])
 
     def triage_by_key(self, idempotency_key: str) -> dict[str, Any] | None:
         with self.connect() as conn:

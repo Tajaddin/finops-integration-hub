@@ -146,6 +146,10 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             metrics.DEAD_LETTERS_OPEN.set(len(deps.store.open_dead_letters(settings.crm)))
         except Exception:  # the scrape must not fail because the database blinked
             logger.warning("metrics_dead_letters_unavailable")
+        try:
+            metrics.TRIAGE_UNFILED.set(deps.store.unfiled_triage_runs() if settings.tickets != "none" else 0)
+        except Exception:
+            logger.warning("metrics_triage_unfiled_unavailable")
         return Response(metrics.exposition(), media_type=CONTENT_TYPE_LATEST)
 
     @app.post("/v1/sync/runs", dependencies=authed)
@@ -238,6 +242,9 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             return None
         run = deps.store.claim_triage_ticket(run_id)
         if run is None:
+            filed = deps.store.get_triage(run_id)
+            if filed is not None and filed["ticket_noted_at"]:  # filed by the request this one raced
+                return filed["ticket_ref"]
             raise HTTPException(409, "the ticket for this message is being filed; retry shortly")
         result = run["result"]
         try:
@@ -261,7 +268,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             sink.note(ticket_id, note)
             deps.store.triage_ticket_noted(run_id)
         except BaseException:
-            deps.store.release_triage_ticket(run_id)
+            deps.store.release_triage_ticket(run_id, run["ticket_filing_until"])
             raise
         return ticket_ref
 

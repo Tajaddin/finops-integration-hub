@@ -134,6 +134,24 @@ tests:
               description: The local model is slow or overloaded (GPU memory, another model resident); n8n retries will start timing out.
               runbook: docs/RUNBOOK.md#triageslow
 
+  - name: a triaged message left without a ticket alerts after five minutes
+    interval: 1m
+    input_series:
+      - series: hub_triage_unfiled{job="hub"}
+        values: "0 0 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: TriageTicketUnfiled
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: TriageTicketUnfiled
+        exp_alerts:
+          - exp_labels: { severity: ticket, job: hub }
+            exp_annotations:
+              summary: "Triaged messages without a ticket: 1"
+              description: The ticket system failed on every retry; the messages are saved and a replay with their Idempotency-Key files them.
+              runbook: docs/RUNBOOK.md#triageticketunfiled
+
   - name: one in ten calls failing pages
     interval: 1m
     input_series:
