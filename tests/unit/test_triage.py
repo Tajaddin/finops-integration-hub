@@ -78,7 +78,7 @@ def workflow(llm: ScriptedLLM, lookups: list[str], threshold: float = 0.9) -> Tr
     kb = index.build_kb(embed).as_retriever(similarity_top_k=12)  # mock embeddings rank arbitrarily: show all
     examples = index.build_examples(TRAIN, embed).as_retriever(similarity_top_k=3)
 
-    def lookup(number: str) -> dict[str, Any] | None:
+    def lookup(number: str, _sender: str | None) -> dict[str, Any] | None:
         lookups.append(number)
         return {"number": number, "found": True, "amount_untaxed": "120.00", "currency": "USD", "status": "paid"}
 
@@ -296,3 +296,64 @@ def test_every_large_refund_in_the_eval_sets_is_held_whatever_the_model_says(pat
         if expected:  # a fooled classifier, with or without a misread amount, changes nothing
             assert needs_approval("review", c.text, None, 500), c.id
             assert needs_approval("review", c.text, 1.0, 500), c.id
+
+
+def test_the_invoice_lookup_is_asked_on_behalf_of_the_sender() -> None:
+    seen: list[tuple[str, str | None]] = []
+
+    def not_theirs(number: str, sender: str | None) -> None:
+        seen.append((number, sender))
+
+    wf = workflow(fresh_llm(), [], threshold=0.0)
+    wf.lookup_invoice = not_theirs
+    r = asyncio.run(triage(wf, "I need a copy of my bill INV/2026/00042", sender="ap@acme.example"))
+    assert seen == [("INV/2026/00042", "ap@acme.example")]
+    assert r.invoices == [{"number": "INV/2026/00042", "found": False}]
+
+
+class FakeOdoo:
+    """search_read over one posted invoice of partner 3, whose website is acme.example."""
+
+    def __init__(self) -> None:
+        self.models: list[str] = []
+
+    def search_read(self, model: str, domain: list[Any], fields: list[str], **_: Any) -> list[dict[str, Any]]:
+        self.models.append(model)
+        if model == "account.move":
+            return [
+                {
+                    "id": 7, "name": "INV/2026/00042", "partner_id": [3, "Acme"], "invoice_origin": "espocrm:d1",
+                    "amount_untaxed": 1200.0, "currency_id": [1, "USD"], "state": "posted",
+                    "payment_state": "not_paid", "invoice_date": "2026-10-01", "invoice_date_due": "2099-10-31",
+                }
+            ]  # fmt: skip
+        assert model == "res.partner" and domain == [["id", "=", 3]]
+        return [{"id": 3, "website": "https://www.acme.example/", "email": "billing@acme-group.example"}]
+
+
+@pytest.mark.parametrize(
+    ("sender", "shown"),
+    [
+        ("ap@acme.example", True),
+        ("AP@Mail.Acme.Example", True),  # a subdomain of the customer's website
+        ("billing@acme-group.example", True),  # the customer's own e-mail address
+        ("someone@other.example", False),
+        ("ap@acme.example.attacker.net", False),
+        ("other@acme-group.example", False),  # the e-mail's domain alone is not the customer's
+        (None, False),
+    ],
+)
+def test_an_invoice_is_shown_only_to_its_customer(sender: str | None, shown: bool) -> None:
+    from hub.connectors.odoo import OdooErp
+    from hub.triage.runtime import invoice_lookup
+
+    odoo = FakeOdoo()
+    found = invoice_lookup(OdooErp(odoo))("INV/2026/00042", sender)  # type: ignore[arg-type]
+    if shown:
+        assert found == {
+            "number": "INV/2026/00042", "found": True, "amount_untaxed": "1200.00", "currency": "USD",
+            "status": "invoiced", "due_date": "2099-10-31",
+        }  # fmt: skip
+    else:
+        assert found is None
+    assert odoo.models == ([] if sender is None else ["account.move", "res.partner"])

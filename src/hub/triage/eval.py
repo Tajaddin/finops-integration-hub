@@ -165,9 +165,9 @@ async def agent_on_challenge(
     seen_lookups: list[str] = []
     original = workflow.lookup_invoice
 
-    def recording(number: str) -> dict[str, Any] | None:
+    def recording(number: str, sender: str | None) -> dict[str, Any] | None:
         seen_lookups.append(number)
-        return original(number)
+        return original(number, sender)
 
     workflow.lookup_invoice = recording
     rows: list[dict[str, Any]] = []

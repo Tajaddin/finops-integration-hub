@@ -13,10 +13,12 @@ design"; Apptegy for "informed opinions about when each is the wrong choice"; In
 
 - **A LlamaIndex `Workflow`, not a free-roaming tool-calling agent.** Three steps (classify, enrich, draft) with
   typed events. The only tool is a read-only invoice lookup, and the workflow passes it only invoice numbers that
-  appear in the message, so "look up every customer" in a message has nothing to call. Approval of refunds above
-  the threshold (or of unknown size) is an `if` in code, after the model; a draft that promises a held refund or
-  quotes the system prompt (a canary string) is replaced. The message is wrapped as data and cannot close its own
-  delimiter. Ticket creation happens in the API after the workflow, never as a model tool.
+  appear in the message, so "look up every customer" in a message has nothing to call; an invoice is shown only
+  when its customer's website domain (or e-mail) is the sender's, so naming another customer's number shows
+  nothing. Approval of refunds above the threshold (or of unknown size) is an `if` in code, after the model; a
+  draft that promises a held refund or quotes the system prompt (a canary string) is replaced. The message is
+  wrapped as data and cannot close its own delimiter. Ticket creation happens in the API after the workflow, never
+  as a model tool.
 - **A cascade.** A TF-IDF + logistic-regression model answers when its confidence is at least 0.9; otherwise the
   LLM classifies with the 8 most similar labelled messages retrieved from pgvector as examples. The baseline costs
   about 80 microseconds and no tokens; the LLM is paid for only where the cheap model is unsure. The measured trade

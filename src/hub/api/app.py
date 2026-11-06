@@ -197,7 +197,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             return _triage_answer(seen["id"], seen["result"], seen["ticket_ref"], replay=True)
         langfuse = tracing.setup(settings)
         if langfuse is None:
-            result = await triage(deps.triage(), body.message)
+            result = await triage(deps.triage(), body.message, str(body.sender))
         else:  # one trace per turn; LlamaIndex's retrieval and LLM calls nest under it (OpenInference)
             from langfuse import propagate_attributes
 
@@ -207,7 +207,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
                 ) as span,
                 propagate_attributes(user_id=tracing.sender_id(str(body.sender)), trace_name="triage", tags=["triage"]),
             ):
-                result = await triage(deps.triage(), body.message)
+                result = await triage(deps.triage(), body.message, str(body.sender))
                 span.update(
                     output={
                         "intent": result.intent,

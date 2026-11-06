@@ -3,9 +3,9 @@
 ## What it does
 
 Routes an inbound customer message to one of 27 intents (11 categories), a helpdesk queue and a priority; looks up
-invoice numbers written in the message in the ERP (read-only); drafts a reply that cites help-centre articles for a
-person to review; holds refunds above 500 (or of unknown size) for finance approval. It never sends anything to a
-customer and never changes the ERP. Design in ADR 0006.
+invoice numbers written in the message in the ERP (read-only, the sender's own invoices only); drafts a reply that
+cites help-centre articles for a person to review; holds refunds above 500 (or of unknown size) for finance
+approval. It never sends anything to a customer and never changes the ERP. Design in ADR 0006.
 
 ## Components
 

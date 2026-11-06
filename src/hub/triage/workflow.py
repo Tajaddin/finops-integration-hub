@@ -2,8 +2,8 @@
 
 1. **classify**: the TF-IDF model answers when it is confident; otherwise the LLM decides, with the most similar
    labelled messages retrieved as examples (the cascade measured in reports/triage/).
-2. **enrich**: for billing intents, look up each invoice number written in the message in the ERP (read-only, and
-   only numbers that appear in the message: the model cannot ask for anything else).
+2. **enrich**: for billing intents, look up each invoice number written in the message in the ERP (read-only, only
+   numbers that appear in the message, and only the sender's own invoices: the model cannot ask for anything else).
 3. **draft**: retrieve help-centre articles, have the LLM draft a reply that cites them, then apply the rules that
    are not the model's to decide: a refund above the threshold (or of unknown size) needs finance approval; a
    draft that promises a refund or quotes the system prompt is replaced by a safe one.
@@ -131,6 +131,7 @@ class TriageResult:
 
 class Classified(Event):
     text: str
+    sender: str | None
     intent: str | None
     confidence: float
     path: str
@@ -143,6 +144,7 @@ class Classified(Event):
 class Enriched(Event):
     # not a subclass of Classified: the workflow routes events by type, and a subclass would loop back into enrich
     text: str
+    sender: str | None
     intent: str | None
     confidence: float
     path: str
@@ -160,7 +162,7 @@ class TriageWorkflow(Workflow):
         classifier: LlmClassifier,
         llm: LLM,
         kb: BaseRetriever,
-        lookup_invoice: Callable[[str], dict[str, Any] | None],
+        lookup_invoice: Callable[[str, str | None], dict[str, Any] | None],
         *,
         confidence_threshold: float = 0.9,
         refund_threshold: float = 500.0,
@@ -181,16 +183,17 @@ class TriageWorkflow(Workflow):
     @step
     async def classify(self, ev: StartEvent) -> Classified:
         text = str(ev.get("message", ""))[:4000]
+        sender = ev.get("sender")
         guess = self.baseline.predict([text])[0]
         if guess.confidence >= self.confidence_threshold:
             return Classified(
-                text=text, intent=guess.intent, confidence=guess.confidence, path="baseline",
+                text=text, sender=sender, intent=guess.intent, confidence=guess.confidence, path="baseline",
                 refund_amount=amount_in(text), llm_calls=0, prompt_tokens=0, completion_tokens=0,
             )  # fmt: skip
         verdict = await self.classifier.aclassify(text)
         amount = verdict.refund_amount if verdict.refund_amount is not None else amount_in(text)
         return Classified(
-            text=text, intent=verdict.intent, confidence=guess.confidence, path="llm" if verdict.valid else "llm_invalid",
+            text=text, sender=sender, intent=verdict.intent, confidence=guess.confidence, path="llm" if verdict.valid else "llm_invalid",
             refund_amount=amount, llm_calls=1, prompt_tokens=verdict.prompt_tokens, completion_tokens=verdict.completion_tokens,
         )  # fmt: skip
 
@@ -199,7 +202,7 @@ class TriageWorkflow(Workflow):
         invoices: list[dict[str, Any]] = []
         if ev.intent in labels.LOOKS_UP_INVOICES:
             for number in dict.fromkeys(money.INVOICE_NUMBER.findall(ev.text)):
-                found = self.lookup_invoice(number)
+                found = self.lookup_invoice(number, ev.sender)
                 invoices.append(found or {"number": number, "found": False})
         return Enriched(**ev.model_dump(), invoices=invoices)
 
@@ -286,9 +289,10 @@ class TriageWorkflow(Workflow):
         result.reply = reply
 
 
-async def triage(workflow: TriageWorkflow, message: str) -> TriageResult:
-    """Run one message through the workflow; `seconds` is the whole run (the workflow's own timeout applies)."""
+async def triage(workflow: TriageWorkflow, message: str, sender: str | None = None) -> TriageResult:
+    """Run one message through the workflow; `seconds` is the whole run (the workflow's own timeout applies). Without
+    a sender no invoice is shown (the evaluation sets have none)."""
     t0 = time.perf_counter()
-    result: TriageResult = await workflow.run(message=message)
+    result: TriageResult = await workflow.run(message=message, sender=sender)
     result.seconds = round(time.perf_counter() - t0, 3)
     return result

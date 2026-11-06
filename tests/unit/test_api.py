@@ -110,7 +110,7 @@ class FakeTriage:
     def __init__(self) -> None:
         self.runs = 0
 
-    async def run(self, message: str) -> object:
+    async def run(self, message: str, sender: str | None = None) -> object:
         from hub.triage.workflow import TriageResult
 
         self.runs += 1
