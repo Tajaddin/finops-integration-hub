@@ -63,23 +63,23 @@ OUR_ADDRESSES = {"support@ledgerline.example"}
 
 
 def needs_approval(intent: str | None, text: str, amount: float | None, threshold: float) -> bool:
-    """A refund is held for finance when the message is (or reads like) a request for money back and the largest
-    amount it could mean is over the threshold. It is held too when an amount in it cannot be read, when the model
-    reports an amount the message does not contain, and when a refund request names no amount at all."""
+    """A refund is held for finance when the message is (or reads like) a request for money back and any number in
+    it, at its largest reading, is over the threshold: with a currency or without one ("refund 2400"), invoice
+    numbers and dates aside. That also holds some refunds that only quote an order or phone number, the safe side.
+    It is held too when a number in it cannot be read ("$2,4OO", "two thousand"), when the model reports an amount
+    the message does not contain, and when a refund request names no amount with a currency at all."""
     if intent != "get_refund" and MONEY_BACK.search(text) is None:
         return False
     written = money.mentions(text)
-    candidates = [m.value for m in written if m.value is not None]
-    if len(candidates) < len(written):
+    found = written + money.numbers(text)
+    if any(not m.readings for m in found):
         return True
-    if amount is not None:
-        matching = [m for m in written + money.numbers(text) if any(abs(amount - v) < 0.005 for v in m.readings)]
-        if not matching:
-            return True
-        candidates += [max(m.readings) for m in matching]
-    if not candidates:
-        return intent == "get_refund"
-    return max(candidates) > threshold
+    values = [v for m in found for v in m.readings]
+    if amount is not None and not any(abs(amount - v) < 0.005 for v in values):
+        return True
+    if values and max(values) > threshold:
+        return True
+    return intent == "get_refund" and not written and amount is None
 
 
 QUOTED = re.compile(r"['\"\u2018\u201c]([^'\"\u2019\u201d]{12,})['\"\u2019\u201d]")

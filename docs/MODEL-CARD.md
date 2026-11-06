@@ -85,9 +85,13 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
 - The injection pattern list is easy to evade; it only flags tickets. The defences that hold are structural: no
   write tools, approvals decided in code, drafts reviewed by a person, guards on what a draft may contain.
 - English only in testing (one Turkish injection in the hold-out). Amounts are read with a symbol or ISO code on
-  either side, grouped with commas, dots, spaces or apostrophes, with k/m suffixes (`src/hub/triage/money.py`); an
-  amount it cannot read, or one the model reads differently from the message, holds the refund. Amounts written
-  only in words are not read, so they hold too.
+  either side, grouped with commas, dots, spaces or apostrophes, with k/m suffixes (`src/hub/triage/money.py`). In
+  a request for money back every other number counts as a possible amount too, invoice numbers and dates aside, so
+  "refund 2400" with no currency is held, and so is a small refund that quotes an order or phone number. A number
+  it cannot read, an amount in words ("two thousand"), or an amount the model reports that is not in the message
+  holds the refund. The rule does not read an invoice's own amount: a refund that names none ("refund
+  INV/2026/00012 in full") is held only when the model calls it a refund request, and not when the message also
+  names a small amount.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy

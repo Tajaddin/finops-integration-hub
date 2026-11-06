@@ -4,7 +4,8 @@ The rule needs the largest amount a message could mean, so where a number has tw
 "$2.400" is 2,400 (European grouping), not 2.40. Separators may be commas, dots, spaces or apostrophes, the
 currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies. A currency written with
 a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported as unreadable, and the rule holds
-the refund rather than guess.
+the refund rather than guess. An amount need not carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so
+the rule also reads every other number in the message (`numbers`), invoice numbers and dates aside.
 """
 
 from __future__ import annotations
@@ -24,10 +25,13 @@ _SUFFIX = r"(?:k|m|mn|bn|\s?thousand|\s?million|\s?billion|\s?grand)\b"
 _DASH = r"(?:[.,][-\N{EN DASH}])?"  # "2.400,- EUR", "CHF 1'200.-"
 MULTIPLIERS = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9, "billion": 1e9}
 # The currency before the number and after it are separate patterns, so "5 USD 2,400" yields both amounts. Before
-# a number a code counts only in capitals ("try 3 times" is not Turkish lira), and letters glued to the number make
-# it unreadable ("$2,4OO").
+# a number a code counts only in capitals ("try 3 times" is not Turkish lira); after one in any case ("2400 eur"),
+# except TRY ("give it 1 try" must not pass for an amount and make a refund look small). Letters glued to the number
+# make it unreadable ("$2,4OO").
 BEFORE = re.compile(rf"(?:{_SYMBOL}|(?-i:\b{_CODE}))\s*(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}(?P<x>[^\W\d_]*)", re.I)
-AFTER = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}\s*(?:{_SYMBOL}|{_CODE}\b|{_WORD}\b)", re.I)
+AFTER = re.compile(
+    rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}\s*(?:{_SYMBOL}|(?:(?!try\b){_CODE}|(?-i:TRY))\b|{_WORD}\b)", re.I
+)
 BARE = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?", re.I)
 _CARDINAL = (
     r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty"
@@ -41,6 +45,18 @@ NUMBER_WORDS = re.compile(rf"\b(?:{_CARDINAL}|{_FILLER})\b(?:[\s-]+(?:{_CARDINAL
 CARDINAL = re.compile(rf"\b{_CARDINAL}\b", re.I)
 CURRENCY_AFTER_WORDS = re.compile(rf"[\s-]+(?:{_WORD}|grand|{_CODE})\b", re.I)
 SYMBOL_WORDS = re.compile(rf"{_SYMBOL}\s*(?:{_FILLER}\s+)*{_CARDINAL}\b", re.I)
+MAGNITUDE = re.compile(r"\b(?:hundred|thousand|million|billion)s?\b", re.I)
+_MONTH = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?"
+    r"|nov(?:ember)?|dec(?:ember)?)\.?"
+)
+_YEAR = r"(?:19|20)\d{2}"
+# dates are not amounts: 2026-10-01, 01.10.2026, 10/01/2026, March 3, 2026, 3 March 2026, Oct 2026
+DATE = re.compile(
+    rf"\b(?:{_YEAR}-\d{{1,2}}-\d{{1,2}}|\d{{1,2}}([./-])\d{{1,2}}\1{_YEAR}"
+    rf"|{_MONTH}\s+(?:\d{{1,2}}(?:st|nd|rd|th)?,?\s+)?{_YEAR}|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH},?\s+{_YEAR})\b",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -92,8 +108,12 @@ def _mention(m: re.Match[str]) -> Mention:
     return Mention(m.group(0).strip(), values)
 
 
+def _blank(pattern: re.Pattern[str], text: str) -> str:
+    return pattern.sub(lambda m: " " * len(m.group(0)), text)
+
+
 def _masked(text: str) -> str:
-    return INVOICE_NUMBER.sub(lambda m: " " * len(m.group(0)), text)  # invoice numbers are not amounts
+    return _blank(INVOICE_NUMBER, text)  # invoice numbers are not amounts
 
 
 def mentions(text: str) -> list[Mention]:
@@ -111,11 +131,17 @@ def mentions(text: str) -> list[Mention]:
 
 
 def numbers(text: str) -> list[Mention]:
-    """Every number written in the message, with or without a currency (invoice numbers excluded)."""
-    return [_mention(m) for m in BARE.finditer(_masked(text))]
+    """Every number written in the message, with or without a currency, except invoice numbers and dates; and each
+    number written in words with a magnitude ("two thousand", "a few hundred"), which cannot be read."""
+    text = _blank(DATE, _masked(text))
+    found = [(m.start(), _mention(m)) for m in BARE.finditer(text)]
+    found += [
+        (m.start(), Mention(m.group(0), frozenset())) for m in NUMBER_WORDS.finditer(text) if MAGNITUDE.search(m[0])
+    ]
+    return [mention for _, mention in sorted(found, key=lambda x: x[0])]
 
 
 def read(value: str) -> float | None:
     """The amount in a short string such as a model's answer ("1.200,00", "$2.4k"): its largest reading."""
-    found = numbers(value)
-    return found[0].value if found else None
+    found = BARE.search(_masked(value))
+    return _mention(found).value if found else None
