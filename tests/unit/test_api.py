@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
@@ -144,3 +148,32 @@ def test_triage_is_idempotent_per_key_and_decisions_are_recorded_once(store: Sto
         == "approved"
     )
     assert client.post(f"/v1/triage/{first['id']}/decision", json=decide, headers={"X-API-Key": KEY}).status_code == 409
+
+
+def bare_app(**settings: object) -> FastAPI:
+    """The API with no database: for checks that refuse a request before anything is looked up."""
+    config = Settings(api_key=SecretStr(KEY), _env_file=None, **settings)  # type: ignore[call-arg]
+    return create_app(config, Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=None, tickets=lambda: None))  # type: ignore[arg-type]
+
+
+def test_an_oversized_webhook_is_refused_while_it_streams_in() -> None:
+    sent = 0
+
+    async def body() -> AsyncIterator[bytes]:  # 6.4 MB in 64 KB chunks, with no Content-Length to go by
+        nonlocal sent
+        for _ in range(100):
+            sent += 1
+            yield b"[" * 65536
+
+    async def post() -> httpx.Response:
+        transport = httpx.ASGITransport(app=bare_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://hub") as client:
+            return await client.post("/webhooks/espocrm", content=body())
+
+    assert asyncio.run(post()).status_code == 413
+    assert sent <= 17, "the body must not be read past the 1 MB limit"
+
+
+def test_the_default_rate_limit_applies_to_every_route() -> None:
+    client = TestClient(bare_app(rate_limit="2/minute"))
+    assert [client.get("/health").status_code for _ in range(3)] == [200, 200, 429]

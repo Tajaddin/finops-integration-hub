@@ -29,6 +29,7 @@ from prometheus_client import CONTENT_TYPE_LATEST
 from pydantic import BaseModel, EmailStr, Field
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
@@ -101,6 +102,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     app = FastAPI(title="finops-integration-hub", version="1.0.0", docs_url="/docs", redoc_url=None)
     app.state.limiter = limiter
     app.state.deps = deps
+    app.add_middleware(SlowAPIMiddleware)  # applies default_limits to the routes without a limit of their own
 
     @app.exception_handler(RateLimitExceeded)
     def _rate_limited(_request: Request, _exc: RateLimitExceeded) -> JSONResponse:
@@ -261,8 +263,8 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     async def espocrm_webhook(
         request: Request, background: BackgroundTasks, signature: Annotated[str | None, Header()] = None
     ) -> dict[str, Any]:
-        body = await request.body()
-        if len(body) > MAX_WEBHOOK_BYTES:
+        body = await _read_at_most(request, MAX_WEBHOOK_BYTES)
+        if body is None:
             metrics.WEBHOOKS.labels("espocrm", "too_large").inc()
             raise HTTPException(413, "payload too large")
         # read per delivery: the bootstrap writes (and rotates) the secret while the hub is running
@@ -283,6 +285,20 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
         return {"accepted": len(records)}
 
     return app
+
+
+async def _read_at_most(request: Request, limit: int) -> bytes | None:
+    """The request body, or None as soon as it is known to be over `limit`: from Content-Length, or while it
+    streams in (a chunked body has none), so an oversized body is never held in memory whole."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > limit:
+        return None
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > limit:
+            return None
+    return bytes(body)
 
 
 def _triage_answer(run_id: int, result: dict[str, Any], ticket_ref: str | None, replay: bool = False) -> dict[str, Any]:
