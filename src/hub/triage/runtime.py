@@ -81,15 +81,16 @@ def retrievers(settings: Settings, examples_k: int = 8, kb_k: int = 3) -> tuple[
 
 
 def belongs_to(sender: str, partner: dict[str, Any]) -> bool:
-    """The sender writes for this ERP customer: their e-mail domain is the customer's website domain or a subdomain
-    of it (the rule the sync matches customers by), or their address is the customer's own e-mail."""
+    """The sender writes for this ERP customer: their e-mail domain is the customer's website domain, normalised as
+    the sync matches customers (no scheme, no www.), or their address is the customer's own e-mail. A subdomain does
+    not count: a customer whose website sits under a shared domain would match every sender under it."""
     address = sender.strip().lower()
     domain = address.rpartition("@")[2]
     site = normalise_domain(partner.get("website") or None)
     own = str(partner.get("email") or "").strip().lower()
     if own and address == own:
         return True
-    return site is not None and (domain == site or domain.endswith("." + site))
+    return site is not None and domain == site
 
 
 def invoice_lookup(erp: OdooErp) -> Callable[[str, str | None], dict[str, Any] | None]:

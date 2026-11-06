@@ -375,7 +375,8 @@ def test_a_customer_with_no_email_or_website_matches_nobody() -> None:
     ("sender", "shown"),
     [
         ("ap@acme.example", True),
-        ("AP@Mail.Acme.Example", True),  # a subdomain of the customer's website
+        ("AP@Acme.Example", True),
+        ("ap@mail.acme.example", False),  # a subdomain is not the customer's domain
         ("billing@acme-group.example", True),  # the customer's own e-mail address
         ("someone@other.example", False),
         ("ap@acme.example.attacker.net", False),
