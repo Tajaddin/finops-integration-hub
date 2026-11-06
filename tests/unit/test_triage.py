@@ -239,7 +239,7 @@ def test_money_is_read_in_every_common_format(text: str, value: float) -> None:
     assert amount_in(text) == value
 
 
-@pytest.mark.parametrize("run", ["123 ", "1'", "a ", "one ", "a few "])
+@pytest.mark.parametrize("run", ["123 ", "1'", "a ", "one ", "a few ", "1O"])
 def test_reading_money_takes_linear_time(run: str) -> None:
     # a 4,000-character message (the API's limit) of one repeated pattern: the patterns retried such a run from every
     # group or word, up to 2 s per call on a run of digit groups, all of it on the event loop
@@ -271,6 +271,12 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("get_refund", "Please refund a few thousand dollars for the unused seats.", None),
         ("get_refund", "Please refund $12,3456 for the seats.", None),
         ("get_refund", "Please refund $2,4OO for the seats.", None),
+        ("review", "Please refund 24OO USD for the seats.", None),  # letters that look like digits, no currency before
+        ("review", "Please refund 2,4OO EUR for the seats.", None),
+        ("review", "Please refund 24OO for the seats.", None),
+        ("review", "Please refund 2,4OO for the seats.", None),
+        ("get_refund", "Please refund 2I00 USD for the seats.", None),
+        ("review", "Please refund 1O,400 for the seats.", None),
         ("get_refund", "Please refund 2,400 for the seats.", 240.0),
         ("get_refund", "Please refund $300 for the seats.", 30.0),
         (
@@ -307,6 +313,7 @@ def test_large_or_unreadable_refunds_cannot_slip_past_the_hold(
         ("get_invoice", "Send me a copy of the USD invoice for 40 seats, INV/2026/00412.", None),
         ("get_refund", "Please refund $240.00, charged on 2026-10-01 for the plan renewed March 3, 2026.", 240.0),
         ("get_refund", "Refund the $95.00 we paid on 01.10.2026 for 20 seats.", None),
+        ("get_refund", "Refund the $95.00 for the 2nd seat, the 10oz mugs and the 10am session.", None),
     ],
 )
 def test_small_refunds_and_other_money_are_not_held(intent: str, text: str, model_amount: float | None) -> None:

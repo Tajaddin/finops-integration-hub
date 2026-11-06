@@ -4,8 +4,9 @@ The rule needs the largest amount a message could mean, so where a number has tw
 "$2.400" is 2,400 (European grouping), not 2.40. Separators may be commas, dots, spaces or apostrophes, the
 currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies. A currency written with
 a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported as unreadable, and the rule holds
-the refund rather than guess. An amount need not carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so
-the rule also reads every other number in the message (`numbers`), invoice numbers and dates aside.
+the refund rather than guess; so is any number with letters that look like digits glued to it ("24OO"). An amount
+need not carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number
+in the message (`numbers`), invoice numbers and dates aside.
 """
 
 from __future__ import annotations
@@ -32,7 +33,9 @@ BEFORE = re.compile(rf"(?:{_SYMBOL}|(?-i:\b{_CODE}))\s*(?P<n>{_NUMBER})(?P<s>{_S
 AFTER = re.compile(
     rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}\s*(?:{_SYMBOL}|(?:(?!try\b){_CODE}|(?-i:TRY))\b|{_WORD}\b)", re.I
 )
-BARE = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?", re.I)
+# Without a currency only letters that look like digits make a number unreadable ("24OO", "2I00", "1O,400"), so
+# units and ordinals ("10oz", "2nd", "10am") still read as the number they follow.
+BARE = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?(?P<x>(?-i:[OoIl]+)(?:{_SUFFIX})?(?![^\W\d_]))?", re.I)
 _CARDINAL = (
     r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty"
     r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?)"

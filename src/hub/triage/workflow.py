@@ -67,8 +67,8 @@ def needs_approval(intent: str | None, text: str, amount: float | None, threshol
     """A refund is held for finance when the message is (or reads like) a request for money back and any number in
     it, at its largest reading, is over the threshold: with a currency or without one ("refund 2400"), invoice
     numbers and dates aside. That also holds some refunds that only quote an order or phone number, the safe side.
-    It is held too when a number in it cannot be read ("$2,4OO", "two thousand"), when the model reports an amount
-    the message does not contain, and when a refund request names no amount with a currency at all."""
+    It is held too when a number in it cannot be read ("$2,4OO", "24OO", "two thousand"), when the model reports an
+    amount the message does not contain, and when a refund request names no amount with a currency at all."""
     if intent != "get_refund" and MONEY_BACK.search(text) is None:
         return False
     written = money.mentions(text)
