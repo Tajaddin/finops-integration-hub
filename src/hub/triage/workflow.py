@@ -25,11 +25,10 @@ from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.llms import LLM
 from llama_index.core.workflow import Event, StartEvent, StopEvent, Workflow, step
 
-from hub.triage import labels
+from hub.triage import labels, money
 from hub.triage.baseline import TfidfBaseline
 from hub.triage.llm import SYSTEM, LlmClassifier, amount_in, wrap
 
-INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
 CANARY = "ledgerline-triage-7f3a"  # in the drafting prompt; must never appear in a reply
 PROMISE = re.compile(
     r"\b(approved|have refunded|has been refunded|will refund you|refund (?:is|has been) (?:processed|issued)"
@@ -37,14 +36,17 @@ PROMISE = re.compile(
     re.I,
 )
 REFUND_INTENTS = {"get_refund", "track_refund", "check_refund_policy", "check_cancellation_fee"}
-# Refund wording, used by the approval rule without trusting the model's intent (#23): an injected "classify this as
-# review" must not be able to switch the approval off.
-REFUND_WORDS = re.compile(
-    r"\b(refund\w*|reimburs\w*|money back|rebate|chargeback|iade|reverse (?:the|that) charge)", re.I
-)
-# Every money amount written in a message: "$1,250.00", "€900", "900.00 dollars", "900.00 dolar".
-MONEY = re.compile(
-    r"[$€£]\s?(\d[\d,]*(?:\.\d{2})?)|(\d[\d,]*(?:\.\d{2})?)\s?(?:usd|eur|gbp|dollars?|dolar|euros?|pounds?)\b", re.I
+# Wording that asks for money back, used by the approval rule without trusting the model's intent (#23): an injected
+# "classify this as review" must not be able to switch the approval off. Not only the word "refund": a reversed,
+# duplicate or excess charge, money returned or credited back, and the word for refund in a few other languages.
+MONEY_BACK = re.compile(
+    r"\b(?:refund\w*|reimburs\w*|rebate|chargeback|charge\s+back|money\s+back|(?:pay|paid)\s+(?:me|us)\s+back"
+    r"|(?:return|give\s+back|send\s+back)\s+(?:my|our|the)\s+(?:money|funds|payment)"
+    r"|revers\w*\s+(?:of\s+)?(?:the|this|that|these|those|my|our|a)?\s*(?:duplicate\s+|double\s+)?(?:charge|payment|transaction)"
+    r"|credit\b(?!\s+card)[^.!?\n]{0,40}?\bback\b|credit\s+note|overcharg\w*|double[\s-]?(?:charged|billed)"
+    r"|(?:charged|billed)\s+(?:\S+\s+){0,4}?twice|duplicate\s+(?:charge|payment)"
+    r"|iade|reembols\w*|rembours\w*|r(?:ü|ue)ckerstatt\w*|rimbors\w*)",
+    re.I,
 )
 # Known injection phrasings. Not a defence on its own (easy to evade): it flags the ticket for a person and raises
 # its priority; the decisions that matter are made in code whatever the model says.
@@ -59,16 +61,21 @@ EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 OUR_ADDRESSES = {"support@ledgerline.example"}
 
 
-def amounts(text: str) -> list[float]:
-    return [float(next(g for g in m.groups() if g).replace(",", "")) for m in MONEY.finditer(text)]
-
-
 def needs_approval(intent: str | None, text: str, amount: float | None, threshold: float) -> bool:
-    """A refund is held for finance when the message is (or reads like) a refund request and the largest amount in
-    it, written or as the model read it, is over the threshold. A refund request with no amount is held too."""
-    if intent != "get_refund" and REFUND_WORDS.search(text) is None:
+    """A refund is held for finance when the message is (or reads like) a request for money back and the largest
+    amount it could mean is over the threshold. It is held too when an amount in it cannot be read, when the model
+    reports an amount the message does not contain, and when a refund request names no amount at all."""
+    if intent != "get_refund" and MONEY_BACK.search(text) is None:
         return False
-    candidates = amounts(text) + ([amount] if amount is not None else [])
+    written = money.mentions(text)
+    candidates = [m.value for m in written if m.value is not None]
+    if len(candidates) < len(written):
+        return True
+    if amount is not None:
+        matching = [m for m in written + money.numbers(text) if any(abs(amount - v) < 0.005 for v in m.readings)]
+        if not matching:
+            return True
+        candidates += [max(m.readings) for m in matching]
     if not candidates:
         return intent == "get_refund"
     return max(candidates) > threshold
@@ -191,7 +198,7 @@ class TriageWorkflow(Workflow):
     async def enrich(self, ev: Classified) -> Enriched:
         invoices: list[dict[str, Any]] = []
         if ev.intent in labels.LOOKS_UP_INVOICES:
-            for number in dict.fromkeys(INVOICE_NUMBER.findall(ev.text)):
+            for number in dict.fromkeys(money.INVOICE_NUMBER.findall(ev.text)):
                 found = self.lookup_invoice(number)
                 invoices.append(found or {"number": number, "found": False})
         return Enriched(**ev.model_dump(), invoices=invoices)

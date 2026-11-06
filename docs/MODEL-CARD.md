@@ -84,8 +84,10 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   few hundred real messages and re-run `make triage-eval`.
 - The injection pattern list is easy to evade; it only flags tickets. The defences that hold are structural: no
   write tools, approvals decided in code, drafts reviewed by a person, guards on what a draft may contain.
-- English only in testing (one Turkish injection in the hold-out). Amount extraction knows $, EUR and GBP
-  symbols and a few currency words.
+- English only in testing (one Turkish injection in the hold-out). Amounts are read with a symbol or ISO code on
+  either side, grouped with commas, dots, spaces or apostrophes, with k/m suffixes (`src/hub/triage/money.py`); an
+  amount it cannot read, or one the model reads differently from the message, holds the refund. Amounts written
+  only in words are not read, so they hold too.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy
