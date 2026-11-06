@@ -87,7 +87,9 @@ def belongs_to(sender: str, partner: dict[str, Any]) -> bool:
     domain = address.rpartition("@")[2]
     site = normalise_domain(partner.get("website") or None)
     own = str(partner.get("email") or "").strip().lower()
-    return address == own or (site is not None and (domain == site or domain.endswith("." + site)))
+    if own and address == own:
+        return True
+    return site is not None and (domain == site or domain.endswith("." + site))
 
 
 def invoice_lookup(erp: OdooErp) -> Callable[[str, str | None], dict[str, Any] | None]:

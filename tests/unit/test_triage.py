@@ -332,6 +332,13 @@ class FakeOdoo:
         return [{"id": 3, "website": "https://www.acme.example/", "email": "billing@acme-group.example"}]
 
 
+def test_a_customer_with_no_email_or_website_matches_nobody() -> None:
+    from hub.triage.runtime import belongs_to
+
+    assert not belongs_to(" ", {"website": False, "email": False})
+    assert not belongs_to("ap@acme.example", {"website": False, "email": ""})
+
+
 @pytest.mark.parametrize(
     ("sender", "shown"),
     [
