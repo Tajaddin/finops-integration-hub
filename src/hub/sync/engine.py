@@ -9,7 +9,9 @@ this deal (`crm:<deal id>`). The ERP is the source of truth, so it does not matt
 
 Runs are serialised per CRM by a Postgres advisory lock, so two runs cannot both miss and both create. A deal that
 cannot be invoiced until a person fixes it (unknown plan, price that disagrees with the price book) goes to the
-dead-letter table with the reason, and the run carries on. CRM write-backs go through an outbox (store.py).
+dead-letter table with the reason, and the run carries on. A deal parked by a transient failure (the ERP down for
+maintenance) is tried again by every later run, whether or not the cursor still reads it, up to
+MAX_TRANSIENT_ATTEMPTS times in all. CRM write-backs go through an outbox (store.py).
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from hub.pricing import ALLOWED_DEAL_DISCOUNTS, InvoiceLine, invoice_line
 from hub.store import Store
 
 logger = log.get(__name__)
+MAX_TRANSIENT_ATTEMPTS = 5  # runs every 15 minutes: about an hour of retries, then a person looks at it
 
 
 @dataclass
@@ -108,16 +111,21 @@ class SyncEngine:
                 cursor = None if full else self.store.cursor(self.crm.name)
                 since = cursor - self.overlap if cursor else None
                 newest: datetime | None = None
+                read: set[str] = set()
                 if self.workers == 1:
                     for deal in self.crm.won_deals(since):
                         self._timed(deal, stats)
+                        read.add(deal.id)
                         newest = deal.modified_at if newest is None else max(newest, deal.modified_at)
                         if stats.seen % 50 == 0:
                             self.store.set_cursor(self.crm.name, newest)
                 else:
-                    newest = self._parallel(list(self.crm.won_deals(since)), stats)
+                    deals = list(self.crm.won_deals(since))
+                    read = {d.id for d in deals}
+                    newest = self._parallel(deals, stats)
                 if newest is not None:
                     self.store.set_cursor(self.crm.name, newest)
+                self._retry_parked(read, stats)
                 self.flush_writebacks(stats)
                 stats.customers_created = self.customers_created
                 status = "succeeded"
@@ -149,6 +157,21 @@ class SyncEngine:
     def _account_group(self, group: list[CrmDeal], stats: SyncStats) -> None:
         for deal in group:
             self._timed(deal, stats)
+
+    def _retry_parked(self, already_read: set[str], stats: SyncStats) -> None:
+        """Try again the deals a transient failure parked, which the cursor may have moved past."""
+        for row in self.store.open_dead_letters(self.crm.name):
+            if row["reason"] != "transient" or row["attempts"] >= MAX_TRANSIENT_ATTEMPTS:
+                continue
+            if row["deal_id"] in already_read:
+                continue
+            try:
+                deal = self.crm.deal(row["deal_id"])
+            except (PermanentError, ApiError) as exc:
+                logger.warning("parked_deal_unreadable", deal=row["deal_id"], error=str(exc))
+                continue
+            if deal.is_won:
+                self._timed(deal, stats)
 
     def sync_deals(self, deal_ids: list[str]) -> SyncStats:
         """Process just these deals (named by a CRM webhook), under the same lock as a full run."""

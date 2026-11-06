@@ -33,7 +33,8 @@ More than 20 won deals have waited 30 minutes for a person.
    book`, `discount ...% is not an approved discount`, or a parked ERP error (`reason: transient`).
 2. Bad data is fixed in the CRM by sales ops; the next sync sees the change (its modification time moves past the
    cursor), invoices the deal and resolves the dead letter.
-3. Transient ones: once the ERP is healthy, `uv run hub sync --full` re-tries them.
+3. Transient ones: every sync re-tries them, up to 5 attempts in all (`attempts` in the list); one still open
+   after that needs `uv run hub sync --full` once the ERP is healthy.
 
 ## MoneyMismatchFound
 

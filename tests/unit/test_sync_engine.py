@@ -10,7 +10,7 @@ import pytest
 from hub.connectors.http import ApiError
 from hub.domain import BillingStatus, Plan
 from hub.store import AlreadyRunning, Store
-from hub.sync.engine import SyncEngine, validate
+from hub.sync.engine import MAX_TRANSIENT_ATTEMPTS, SyncEngine, validate
 from tests.fakes import FakeCrm, FakeErp, amount_of, make_deal
 
 
@@ -97,14 +97,24 @@ def test_fixing_a_dead_letter_in_the_crm_resolves_it(store: Store) -> None:
 
 
 def test_transient_erp_failure_is_parked_for_the_next_run(store: Store) -> None:
-    crm, erp = FakeCrm([make_deal(0)]), FakeErp()
+    crm, erp = FakeCrm([make_deal(0), make_deal(20)]), FakeErp()  # modified T0 and T0+20 min
     erp.fail_creates_with = ApiError("fakeerp", 503, "maintenance")
     stats = engine(crm, erp, store).run()
-    assert stats.dead_lettered == 1
-    assert store.open_dead_letters("fakecrm")[0]["reason"] == "transient"
+    assert stats.dead_lettered == 2
+    assert {r["reason"] for r in store.open_dead_letters("fakecrm")} == {"transient"}
     erp.fail_creates_with = None
-    stats = engine(crm, erp, store).run(full=True)
-    assert stats.created == 1 and store.open_dead_letters("fakecrm") == []
+    stats = engine(crm, erp, store).run()  # the cursor (T0+20 min less the overlap) is past deal0 now
+    assert stats.created == 2 and store.open_dead_letters("fakecrm") == []
+
+
+def test_a_parked_deal_is_retried_until_the_attempt_cap(store: Store) -> None:
+    crm, erp = FakeCrm([make_deal(0), make_deal(20)]), FakeErp()
+    erp.fail_creates_with = ApiError("fakeerp", 503, "maintenance")
+    for _ in range(MAX_TRANSIENT_ATTEMPTS + 2):
+        engine(crm, erp, store).run()
+    attempts = {r["deal_id"]: r["attempts"] for r in store.open_dead_letters("fakecrm")}
+    assert attempts["deal0"] == MAX_TRANSIENT_ATTEMPTS, "left for a person after the cap"
+    assert attempts["deal20"] == MAX_TRANSIENT_ATTEMPTS + 2, "a deal the cursor still reads is tried every run"
 
 
 def test_cancelled_invoice_is_not_reissued(store: Store) -> None:
