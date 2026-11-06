@@ -94,11 +94,9 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     api_key = ApiKeyCheck(settings.api_key.get_secret_value())
 
     def caller(request: Request) -> str:
-        # one bucket per API key (n8n is one trusted caller behind one address), one per address for anonymous calls
-        presented = request.headers.get("x-api-key")
-        return (
-            "key:" + hashlib.sha256(presented.encode()).hexdigest()[:16] if presented else get_remote_address(request)
-        )
+        # one bucket for the API key (n8n is one trusted caller behind one address), one per address for everyone
+        # else: a made-up key on each call must not buy a fresh bucket
+        return "api-key" if api_key.ok(request.headers.get("x-api-key")) else get_remote_address(request)
 
     limiter = Limiter(key_func=caller, default_limits=[settings.rate_limit])  # per app, see ADR 0005
     app = FastAPI(title="finops-integration-hub", version="1.0.0", docs_url="/docs", redoc_url=None)

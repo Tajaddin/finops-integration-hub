@@ -6,6 +6,7 @@ import asyncio
 import json
 import threading
 import time
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -238,6 +239,13 @@ def test_an_oversized_webhook_is_refused_while_it_streams_in() -> None:
 def test_the_default_rate_limit_applies_to_every_route() -> None:
     client = TestClient(bare_app(rate_limit="2/minute"))
     assert [client.get("/health").status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_made_up_api_keys_share_the_callers_rate_limit() -> None:
+    client = TestClient(bare_app(rate_limit="2/minute"))
+    made_up = [client.get("/health", headers={"X-API-Key": uuid.uuid4().hex}).status_code for _ in range(3)]
+    assert made_up == [200, 200, 429]
+    assert client.get("/health", headers={"X-API-Key": KEY}).status_code == 200, "the real key has its own bucket"
 
 
 class MemoryStore:
