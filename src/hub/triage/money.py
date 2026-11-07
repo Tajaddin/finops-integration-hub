@@ -7,12 +7,14 @@ a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported
 the refund rather than guess; so is any number with letters glued to it ("24OO", "2S00", "1,OOO"), unless they are
 a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"). An amount need not carry a currency at
 all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message (`numbers`),
-invoice numbers and dates aside.
+invoice numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft hyphens) are
+dropped first, so "2<ZWSP>400" is 2,400 as it is on screen.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
@@ -130,6 +132,7 @@ def _blank(pattern: re.Pattern[str], text: str) -> str:
 
 
 def _masked(text: str) -> str:
+    text = "".join(c for c in text if unicodedata.category(c) != "Cf")  # zero-width spaces, joiners, soft hyphens
     return _blank(INVOICE_NUMBER, text)  # invoice numbers are not amounts
 
 
