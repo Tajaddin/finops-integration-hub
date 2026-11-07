@@ -9,7 +9,8 @@ as unreadable, and the rule holds the refund rather than guess; so is any number
 litre only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not
 carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the
 message (`numbers`), invoice numbers and dates aside. Invisible format characters (zero-width spaces and joiners,
-soft hyphens) and combining marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen.
+soft hyphens) and combining marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen; a bidi override
+or isolate, which shows the characters after it in another order, makes the message unreadable instead.
 """
 
 from __future__ import annotations
@@ -19,6 +20,10 @@ import unicodedata
 from dataclasses import dataclass
 
 INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
+# A bidi override or isolate shows the characters after it in another order ("\u202e004,2 USD" is 2,400 USD on
+# screen), so the reader cannot tell what the person saw: the message is reported as unreadable.
+_BIDI = "\u202d\u202e\u2066\u2067\u2068"
+BIDI = re.compile(rf"[{_BIDI}][^\n]*")
 _PREFIXED_DOLLAR = r"(?:US|CA|AU|NZ|HK|SG|C|A|R|S)\$"
 _SYMBOL = rf"(?:{_PREFIXED_DOLLAR}|\$|[€£¥₹₺₼])"
 _CODE = r"(?:USD|EUR|GBP|CAD|AUD|NZD|CHF|JPY|CNY|INR|TRY|AZN|SEK|NOK|DKK|PLN|MXN|BRL|ZAR|SGD|HKD|AED)"
@@ -133,16 +138,18 @@ def _blank(pattern: re.Pattern[str], text: str) -> str:
 
 
 def _masked(text: str) -> str:
-    # invisible format characters (zero-width spaces and joiners, soft hyphens) and combining marks
-    text = "".join(c for c in text if unicodedata.category(c) not in {"Cf", "Mn", "Me"})
+    # invisible format characters (zero-width spaces and joiners, soft hyphens) and combining marks; a bidi override
+    # or isolate is kept, to be reported
+    text = "".join(c for c in text if unicodedata.category(c) not in {"Cf", "Mn", "Me"} or c in _BIDI)
     return _blank(INVOICE_NUMBER, text)  # invoice numbers are not amounts
 
 
 def mentions(text: str) -> list[Mention]:
     """Every amount written with a currency, in the order written, plus each currency written with words for a
-    number (unreadable)."""
+    number (unreadable) and, after a bidi override or isolate, the text it shows in another order (unreadable)."""
     text = _masked(text)
-    found = [(m.start(), _mention(m)) for m in BEFORE.finditer(text)]
+    found = [(m.start(), Mention(m.group(0), frozenset())) for m in BIDI.finditer(text)]
+    found += [(m.start(), _mention(m)) for m in BEFORE.finditer(text)]
     found += [(m.start(), _mention(m)) for m in AFTER.finditer(text)]
     for m in NUMBER_WORDS.finditer(text):
         currency = CURRENCY_AFTER_WORDS.match(text, m.end())

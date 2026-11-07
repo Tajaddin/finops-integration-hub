@@ -297,6 +297,8 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("review", "Please refund 2\N{SOFT HYPHEN}400 USD for the seats.", None),
         ("review", "Please refund 2\N{ZERO WIDTH JOINER}400 for the seats.", None),
         ("review", "Please refund 2\N{COMBINING GRAPHEME JOINER}400 USD for the seats.", None),  # invisible marks
+        ("review", "Please refund \N{RIGHT-TO-LEFT OVERRIDE}004,2 USD for the seats.", None),  # shown as 2,400 USD
+        ("review", "Please refund \N{RIGHT-TO-LEFT ISOLATE}004,2\N{POP DIRECTIONAL ISOLATE} USD for the seats.", None),
         ("get_refund", "Please refund 2,400 for the seats.", 240.0),
         ("get_refund", "Please refund $300 for the seats.", 30.0),
         (
