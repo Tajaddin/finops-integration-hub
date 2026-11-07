@@ -4,9 +4,10 @@ The rule needs the largest amount a message could mean, so where a number has tw
 "$2.400" is 2,400 (European grouping), not 2.40. Separators may be commas, dots, spaces or apostrophes, the
 currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies. A currency written with
 a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported as unreadable, and the rule holds
-the refund rather than guess; so is any number with letters that look like digits glued to it ("24OO"). An amount
-need not carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number
-in the message (`numbers`), invoice numbers and dates aside.
+the refund rather than guess; so is any number with letters glued to it ("24OO", "2S00", "1,OOO"), unless they are
+a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"). An amount need not carry a currency at
+all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message (`numbers`),
+invoice numbers and dates aside.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ import re
 from dataclasses import dataclass
 
 INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
-_SYMBOL = r"(?:(?:US|CA|AU|NZ|HK|SG|C|A|R|S)?\$|[€£¥₹₺₼])"
+_PREFIXED_DOLLAR = r"(?:US|CA|AU|NZ|HK|SG|C|A|R|S)\$"
+_SYMBOL = rf"(?:{_PREFIXED_DOLLAR}|\$|[€£¥₹₺₼])"
 _CODE = r"(?:USD|EUR|GBP|CAD|AUD|NZD|CHF|JPY|CNY|INR|TRY|AZN|SEK|NOK|DKK|PLN|MXN|BRL|ZAR|SGD|HKD|AED)"
 _WORD = r"(?:dollars?|dolar(?:es)?|bucks|euros?|pounds?|quid|yen|lira|manat|rupees?)"
 # digits joined by separators; a space (of any width) only before a group of exactly three digits ("2 400", not "40 2026").
@@ -27,15 +29,27 @@ _DASH = r"(?:[.,][-\N{EN DASH}])?"  # "2.400,- EUR", "CHF 1'200.-"
 MULTIPLIERS = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9, "billion": 1e9}
 # The currency before the number and after it are separate patterns, so "5 USD 2,400" yields both amounts. Before
 # a number a code counts only in capitals ("try 3 times" is not Turkish lira); after one in any case ("2400 eur"),
-# except TRY ("give it 1 try" must not pass for an amount and make a refund look small). Letters glued to the number
-# make it unreadable ("$2,4OO").
-BEFORE = re.compile(rf"(?:{_SYMBOL}|(?-i:\b{_CODE}))\s*(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}(?P<x>[^\W\d_]*)", re.I)
+# except TRY ("give it 1 try" must not pass for an amount and make a refund look small).
+# Letters glued to a number, directly or after a trailing separator, make it unreadable ("24OO", "2S00", "1,OOO",
+# "1 OOO", "24OO" with Cyrillic letters): the reader cannot tell a typo from an amount written to be misread, and a
+# model may read it as the digits it resembles. After a space only a group of three look-alike characters counts,
+# since a space only ever groups thousands ("50 I think" is prose). Any letter counts, so a typo in an id ("order
+# 1O23") holds a refund too, the safe side.
+_GLUE = r"(?:[.,'\u2019]|\s(?=(?-i:[OoIl][\dOoIl]{2})(?!\w)))?"
+BEFORE = re.compile(
+    rf"(?:{_SYMBOL}|(?-i:\b{_CODE}))\s*(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}(?P<x>{_GLUE}[^\W\d_]+)?", re.I
+)
 AFTER = re.compile(
     rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}\s*(?:{_SYMBOL}|(?:(?!try\b){_CODE}|(?-i:TRY))\b|{_WORD}\b)", re.I
 )
-# Without a currency only letters that look like digits make a number unreadable ("24OO", "2I00", "1O,400"), so
-# units and ordinals ("10oz", "2nd", "10am") still read as the number they follow.
-BARE = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?(?P<x>(?-i:[OoIl]+)(?:{_SUFFIX})?(?![^\W\d_]))?", re.I)
+# Without a currency a whole token that is an ordinal, a time, a unit or a currency still reads as the number it
+# follows ("2nd", "10am", "12o'clock", "10oz", "2l", "48h", "2400USD", "95C$"); "2l00" is not "2l", so it stays
+# unreadable.
+_UNIT = (
+    rf"(?:(?:st|nd|rd|th|am|pm|o['\u2019]clock|h|hrs?|mins?|oz|ml|l|lbs?|x|cm|mm|in|kg|g|{_CODE}|{_WORD})\b"
+    rf"|{_PREFIXED_DOLLAR})"
+)
+BARE = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?(?P<x>{_GLUE}(?!{_UNIT})[^\W\d_]+)?", re.I)
 _CARDINAL = (
     r"(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty"
     r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?)"

@@ -239,7 +239,7 @@ def test_money_is_read_in_every_common_format(text: str, value: float) -> None:
     assert amount_in(text) == value
 
 
-@pytest.mark.parametrize("run", ["123 ", "1'", "a ", "one ", "a few ", "1O"])
+@pytest.mark.parametrize("run", ["123 ", "1'", "a ", "one ", "a few ", "1O", "1,O", "1 OOO "])
 def test_reading_money_takes_linear_time(run: str) -> None:
     # a 4,000-character message (the API's limit) of one repeated pattern: the patterns retried such a run from every
     # group or word, up to 2 s per call on a run of digit groups, all of it on the event loop
@@ -277,6 +277,14 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("review", "Please refund 2,4OO for the seats.", None),
         ("get_refund", "Please refund 2I00 USD for the seats.", None),
         ("review", "Please refund 1O,400 for the seats.", None),
+        ("review", "Please refund 1,OOO for the seats.", None),  # the letters after a separator
+        ("review", "Please refund 2,OOO USD for the seats.", None),
+        ("get_refund", "Please refund $1,OOO for the seats.", None),
+        ("review", "Please refund 1 OOO for the seats.", None),
+        ("review", "Please refund 2S00 USD for the seats.", None),  # any letter, not only one that looks like a digit
+        ("review", "Please refund 24OOUSD for the seats.", None),  # and any letter after the look-alikes
+        ("review", "Please refund 24OOs for the seats.", None),
+        ("review", "Please refund 24\u041e\u041e USD for the seats.", None),  # Cyrillic O
         ("get_refund", "Please refund 2,400 for the seats.", 240.0),
         ("get_refund", "Please refund $300 for the seats.", 30.0),
         (
@@ -314,6 +322,9 @@ def test_large_or_unreadable_refunds_cannot_slip_past_the_hold(
         ("get_refund", "Please refund $240.00, charged on 2026-10-01 for the plan renewed March 3, 2026.", 240.0),
         ("get_refund", "Refund the $95.00 we paid on 01.10.2026 for 20 seats.", None),
         ("get_refund", "Refund the $95.00 for the 2nd seat, the 10oz mugs and the 10am session.", None),
+        ("get_refund", "Refund the $40 for the 2l bottle, the 500ml one and the 12o'clock slot.", 40.0),
+        ("get_refund", "Refund the $40 for the 48h delay on the 2 Items I ordered.", 40.0),
+        ("get_refund", "Refund the 95C$ we paid for the 2nd seat.", None),
     ],
 )
 def test_small_refunds_and_other_money_are_not_held(intent: str, text: str, model_amount: float | None) -> None:

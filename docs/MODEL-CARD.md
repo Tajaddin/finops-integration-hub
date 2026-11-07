@@ -88,10 +88,12 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   either side, grouped with commas, dots, spaces or apostrophes, with k/m suffixes (`src/hub/triage/money.py`). In
   a request for money back every other number counts as a possible amount too, invoice numbers and dates aside, so
   "refund 2400" with no currency is held, and so is a small refund that quotes an order or phone number. A number
-  it cannot read (letters that look like digits glued to it, "24OO", with or without a currency), an amount in
-  words ("two thousand"), or an amount the model reports that is not in the message holds the refund. The rule
-  does not read an invoice's own amount: a refund that names none ("refund INV/2026/00012 in full") is held only
-  when the model calls it a refund request, and not when the message also names a small amount.
+  it cannot read holds the refund: letters glued to it, directly or after a separator, with or without a currency
+  ("24OO", "2S00", "1,OOO"), unless the whole token is a unit, an ordinal, a time or a currency ("10oz", "2nd",
+  "10am", "2400USD"); so a letter-O typo in an id ("order 1O23") holds too, the safe side. So does an amount in
+  words ("two thousand") or an amount the model reports that is not in the message. The rule does not read an
+  invoice's own amount: a refund that names none ("refund INV/2026/00012 in full") is held only when the model
+  calls it a refund request, and not when the message also names a small amount.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy
