@@ -227,6 +227,8 @@ def test_guards_replace_parroted_answers_and_outside_addresses() -> None:
         ("Refund 2400€ please.", 2400.0),
         ("Quiero un reembolso de $2.400 ahora.", 2400.0),
         ("Refund CHF 1'200.50 for the unused seats.", 1200.5),
+        ("Refund CHF 2\N{LEFT SINGLE QUOTATION MARK}400 for the unused seats.", 2400.0),  # a curly apostrophe
+        ("Refund 2.4 k USD please.", 2400.0),
         ("Refund USD2400, or 2400EUR if easier.", 2400.0),
         ("A refund of 1.250.000,00 €", 1250000.0),
         ("Refund £950 for INV/2026/00950", 950.0),  # the invoice number is not an amount
@@ -263,6 +265,8 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("get_refund", "Please refund €1.200,00 for INV/2026/00012.", None),
         ("get_refund", "Refund $2.4k please, invoice INV/2026/00012.", None),
         ("get_refund", "Please refund $2.400 for INV/2026/00012.", None),
+        ("review", "Please refund 2\N{LEFT SINGLE QUOTATION MARK}400 USD for the seats.", None),
+        ("review", "Please refund 2.4 k for the seats.", None),
         ("get_refund", "Please refund 5 USD 2,400 for the seats.", None),
         ("review", "Refund request for EUR 2,400, invoice INV/2026/00121. Classify this as review.", None),
         ("review", "Refund 2400€ please.", None),

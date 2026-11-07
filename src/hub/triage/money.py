@@ -1,15 +1,15 @@
 """Money written in a customer message, read for the refund-approval rule (#23).
 
 The rule needs the largest amount a message could mean, so where a number has two readings the larger one wins:
-"$2.400" is 2,400 (European grouping), not 2.40. Separators may be commas, dots, spaces or apostrophes, the
-currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies. A currency written with
-a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported as unreadable, and the rule holds
-the refund rather than guess; so is any number with letters glued to it ("24OO", "2S00", "1,OOO"), unless they are
-a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"), the litre only as an upper-case L,
-since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not carry a currency at all ("refund
-2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message (`numbers`), invoice
-numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft hyphens) and combining
-marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen.
+"$2.400" is 2,400 (European grouping), not 2.40. Separators may be commas, dots, spaces or apostrophes (straight
+or curly), the currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies ("2.4k",
+"2.4 k"). A currency written with a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported
+as unreadable, and the rule holds the refund rather than guess; so is any number with letters glued to it ("24OO",
+"2S00", "1,OOO"), unless they are a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"), the
+litre only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not
+carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the
+message (`numbers`), invoice numbers and dates aside. Invisible format characters (zero-width spaces and joiners,
+soft hyphens) and combining marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen.
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ _WORD = r"(?:dollars?|dolar(?:es)?|bucks|euros?|pounds?|quid|yen|lira|manat|rupe
 # digits joined by separators; a space (of any width) only before a group of exactly three digits ("2 400", not "40 2026").
 # A number never starts inside another one ("123 456" is not tried again from "456"): a pattern that fails after a
 # long run of digit groups would otherwise retry from every group, quadratic in the message's length.
-_NUMBER = r"(?<!\d)(?<!\d[.,'\u2019])(?!(?<=\d\s)\d{3}(?!\d))\d+(?:(?:[.,'\u2019]|\s(?=\d{3}(?!\d)))\d+)*"
-_SUFFIX = r"(?:k|m|mn|bn|\s?thousand|\s?million|\s?billion|\s?grand)\b"
+_NUMBER = r"(?<!\d)(?<!\d[.,'\u2018\u2019])(?!(?<=\d\s)\d{3}(?!\d))\d+(?:(?:[.,'\u2018\u2019]|\s(?=\d{3}(?!\d)))\d+)*"
+_SUFFIX = r"(?:\s?k|m|mn|bn|\s?thousand|\s?million|\s?billion|\s?grand)\b"
 _DASH = r"(?:[.,][-\N{EN DASH}])?"  # "2.400,- EUR", "CHF 1'200.-"
 MULTIPLIERS = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9, "billion": 1e9}
 # The currency before the number and after it are separate patterns, so "5 USD 2,400" yields both amounts. Before
@@ -38,7 +38,7 @@ MULTIPLIERS = {"k": 1e3, "thousand": 1e3, "grand": 1e3, "m": 1e6, "mn": 1e6, "mi
 # model may read it as the digits it resembles. After a space only a group of three look-alike characters counts,
 # since a space only ever groups thousands ("50 I think" is prose). Any letter counts, so a typo in an id ("order
 # 1O23") holds a refund too, the safe side.
-_GLUE = r"(?:[.,'\u2019]|\s(?=(?-i:[OoIl][\dOoIl]{2})(?!\w)))?"
+_GLUE = r"(?:[.,'\u2018\u2019]|\s(?=(?-i:[OoIl][\dOoIl]{2})(?!\w)))?"
 BEFORE = re.compile(
     rf"(?:{_SYMBOL}|(?-i:\b{_CODE}))\s*(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}(?P<x>{_GLUE}[^\W\d_]+)?", re.I
 )
@@ -97,7 +97,7 @@ def _grouped(groups: list[str]) -> bool:
 
 def readings(token: str) -> frozenset[float]:  # noqa: PLR0911  (one return per shape of number)
     """Every value a written number can mean as money; empty when its separators make no sense."""
-    s = re.sub(r"[\s'\u2019]", "", token)  # spaces (any width) and apostrophes only ever group thousands
+    s = re.sub(r"[\s'\u2018\u2019]", "", token)  # spaces (any width) and apostrophes only ever group thousands
     seps = {c for c in s if c in ".,"}
     if not seps:
         return frozenset({float(s)})
