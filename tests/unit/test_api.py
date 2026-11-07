@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 import time
+import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from hub.api.app import Deps, create_app
 from hub.api.security import WebhookSecret, espocrm_signature, verify_espocrm
 from hub.config import Settings
+from hub.connectors.http import ApiError
 from hub.store import Store
+from hub.tickets import Ticket
 from tests.fakes import FakeCrm, FakeErp, make_deal
 
 KEY = "local-dev-key-0000000000000000"
@@ -110,7 +119,7 @@ class FakeTriage:
     def __init__(self) -> None:
         self.runs = 0
 
-    async def run(self, message: str) -> object:
+    async def run(self, message: str, sender: str | None = None) -> object:
         from hub.triage.workflow import TriageResult
 
         self.runs += 1
@@ -144,3 +153,200 @@ def test_triage_is_idempotent_per_key_and_decisions_are_recorded_once(store: Sto
         == "approved"
     )
     assert client.post(f"/v1/triage/{first['id']}/decision", json=decide, headers={"X-API-Key": KEY}).status_code == 409
+
+
+class FlakySink:
+    """A ticket system that can be told to fail opening a ticket or adding a note, as Zammad does when it is down."""
+
+    name = "flaky"
+
+    def __init__(self) -> None:
+        self.tickets: dict[str, list[str]] = {}  # ticket id -> notes
+        self.fail_open = self.fail_note = False
+
+    def open(
+        self, title: str, body: str, *, queue: str, priority: str, tags: list[str], customer: str | None = None
+    ) -> Ticket:
+        if self.fail_open:
+            raise ApiError("flaky", 503, "maintenance")
+        tid = str(len(self.tickets) + 1)
+        self.tickets[tid] = []
+        return Ticket(tid, f"#{tid}")
+
+    def note(self, ticket_id: str, body: str) -> None:
+        if self.fail_note:
+            raise ApiError("flaky", 503, "maintenance")
+        self.tickets[ticket_id].append(body)
+
+
+def triage_client(store: Store, sink: FlakySink) -> tuple[TestClient, FakeTriage]:
+    fake = FakeTriage()
+    settings = Settings(api_key=SecretStr(KEY), _env_file=None)  # type: ignore[call-arg]
+    deps = Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=store, tickets=lambda: sink, triage=lambda: fake)
+    return TestClient(create_app(settings, deps), raise_server_exceptions=False), fake
+
+
+@pytest.mark.parametrize("failing", ["fail_open", "fail_note"])
+def test_a_retry_files_the_ticket_the_first_call_could_not(store: Store, failing: str) -> None:
+    sink = FlakySink()
+    client, fake = triage_client(store, sink)
+    h = {"X-API-Key": KEY, "Idempotency-Key": "n8n-7"}
+    body = {"message": "refund $4,800.00 please", "sender": "a@example.com"}
+    setattr(sink, failing, True)
+    assert client.post("/v1/triage", json=body, headers=h).status_code == 500
+    setattr(sink, failing, False)
+    again = client.post("/v1/triage", json=body, headers=h).json()
+    assert again["replay"] is True and again["ticket"] == "#1" and fake.runs == 1
+    assert len(sink.tickets) == 1 and len(sink.tickets["1"]) == 1, "one ticket with one draft note, however it failed"
+    assert "needs finance approval" in sink.tickets["1"][0]
+    assert client.post("/v1/triage", json=body, headers=h).json()["ticket"] == "#1"
+    assert len(sink.tickets) == 1 and len(sink.tickets["1"]) == 1
+
+
+def test_only_one_request_at_a_time_may_file_a_runs_ticket(store: Store) -> None:
+    run_id = store.save_triage("a@example.com", "refund", {"needs_approval": True}, "k1")
+    first = store.claim_triage_ticket(run_id)
+    assert first is not None
+    assert store.claim_triage_ticket(run_id) is None, "a second request while the first is filing"
+    store.release_triage_ticket(run_id, first["ticket_filing_until"])
+    assert store.claim_triage_ticket(run_id) is not None
+    store.triage_ticket_noted(run_id)
+    assert store.claim_triage_ticket(run_id) is None, "filed: nothing left to claim"
+
+
+def test_a_request_past_its_lease_cannot_end_the_next_ones(store: Store) -> None:
+    run_id = store.save_triage("a@example.com", "refund", {"needs_approval": True}, "k1")
+    late = store.claim_triage_ticket(run_id)
+    assert late is not None
+    with store.connect() as conn:  # its lease runs out while it still waits on the ticket system
+        conn.execute("UPDATE triage_run SET ticket_filing_until = now() - interval '1 second' WHERE id = %s", (run_id,))
+    assert store.claim_triage_ticket(run_id) is not None, "a retry takes the job over"
+    store.release_triage_ticket(run_id, late["ticket_filing_until"])  # the late request fails and gives up
+    assert store.claim_triage_ticket(run_id) is None, "the retry still holds the job"
+
+
+def test_a_retry_that_races_the_filing_request_gets_its_ticket(store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
+    sink = FlakySink()
+    client, _ = triage_client(store, sink)
+    h = {"X-API-Key": KEY, "Idempotency-Key": "n8n-8"}
+    body = {"message": "refund $4,800.00 please", "sender": "a@example.com"}
+    sink.fail_open = True
+    assert client.post("/v1/triage", json=body, headers=h).status_code == 500
+    read = store.triage_by_key
+
+    def filed_right_after(
+        key: str,
+    ) -> dict[str, Any] | None:  # another retry files the ticket just after this one looks
+        run = read(key)
+        assert run is not None
+        store.set_triage_ticket(run["id"], "flaky", "9", "#9")
+        store.triage_ticket_noted(run["id"])
+        return run
+
+    monkeypatch.setattr(store, "triage_by_key", filed_right_after)
+    r = client.post("/v1/triage", json=body, headers=h)
+    assert (r.status_code, r.json()["ticket"]) == (200, "#9")
+
+
+def test_runs_left_without_a_ticket_are_counted_for_the_alert(store: Store) -> None:
+    store.save_triage("a@example.com", "refund", {}, "k-old")
+    store.save_triage("a@example.com", "refund", {}, "k-new")  # n8n may still be retrying this one
+    store.save_triage("a@example.com", "refund", {}, None)  # no key: no retry can file it
+    store.triage_ticket_noted(store.save_triage("a@example.com", "refund", {}, "k-filed"))
+    with store.connect() as conn:
+        conn.execute(
+            "UPDATE triage_run SET received_at = now() - interval '11 minutes' WHERE idempotency_key IS DISTINCT FROM 'k-new'"
+        )
+    assert store.unfiled_triage_runs() == 1
+    client, _ = triage_client(store, FlakySink())
+    assert "hub_triage_unfiled 1.0" in client.get("/metrics").text
+
+
+def bare_app(**settings: object) -> FastAPI:
+    """The API with no database: for checks that refuse a request before anything is looked up."""
+    config = Settings(api_key=SecretStr(KEY), _env_file=None, **settings)  # type: ignore[call-arg]
+    return create_app(config, Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=None, tickets=lambda: None))  # type: ignore[arg-type]
+
+
+def test_an_oversized_webhook_is_refused_while_it_streams_in() -> None:
+    sent = 0
+
+    async def body() -> AsyncIterator[bytes]:  # 6.4 MB in 64 KB chunks, with no Content-Length to go by
+        nonlocal sent
+        for _ in range(100):
+            sent += 1
+            yield b"[" * 65536
+
+    async def post() -> httpx.Response:
+        transport = httpx.ASGITransport(app=bare_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://hub") as client:
+            return await client.post("/webhooks/espocrm", content=body())
+
+    assert asyncio.run(post()).status_code == 413
+    assert sent <= 17, "the body must not be read past the 1 MB limit"
+
+
+def test_the_default_rate_limit_applies_to_every_route() -> None:
+    client = TestClient(bare_app(rate_limit="2/minute"))
+    assert [client.get("/health").status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_made_up_api_keys_share_the_callers_rate_limit() -> None:
+    client = TestClient(bare_app(rate_limit="2/minute"))
+    made_up = [client.get("/health", headers={"X-API-Key": uuid.uuid4().hex}).status_code for _ in range(3)]
+    assert made_up == [200, 200, 429]
+    assert client.get("/health", headers={"X-API-Key": KEY}).status_code == 200, "the real key has its own bucket"
+
+
+class MemoryStore:
+    """Just what the triage endpoint writes, kept in memory."""
+
+    def __init__(self) -> None:
+        self.runs: dict[int, dict[str, object]] = {}
+
+    def save_triage(self, sender: str, message: str, result: dict[str, object], key: str | None = None) -> int:
+        self.runs[len(self.runs) + 1] = {"sender": str(sender), "message": message, "result": result}
+        return len(self.runs)
+
+    def claim_triage_ticket(self, run_id: int) -> dict[str, object]:
+        return {"id": run_id, "ticket_id": None, "ticket_ref": None, **self.runs[run_id]}
+
+    def set_triage_ticket(self, run_id: int, system: str, ticket_id: str, ref: str) -> None:
+        pass
+
+    def triage_ticket_noted(self, run_id: int) -> None:
+        pass
+
+
+def test_triage_does_not_block_the_event_loop() -> None:
+    started, answered, loop_was_free = threading.Event(), threading.Event(), []
+
+    class SlowSink(FlakySink):  # Zammad taking its time: it can only finish if the loop answers /health meanwhile
+        def open(self, *args: object, **kwargs: object) -> Ticket:
+            started.set()
+            loop_was_free.append(answered.wait(2))
+            return super().open(*args, **kwargs)  # type: ignore[arg-type]
+
+    settings = Settings(api_key=SecretStr(KEY), _env_file=None)  # type: ignore[call-arg]
+    deps = Deps(crm=lambda: FakeCrm([]), erp=FakeErp, store=MemoryStore(), tickets=SlowSink, triage=FakeTriage)  # type: ignore[arg-type]
+
+    async def both() -> list[httpx.Response]:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=create_app(settings, deps)), base_url="http://hub"
+        ) as client:
+
+            async def health() -> httpx.Response:
+                while not started.is_set():
+                    await asyncio.sleep(0.01)
+                r = await client.get("/health")
+                answered.set()
+                return r
+
+            body = {"message": "refund $4,800.00 please", "sender": "a@example.com"}
+            return list(
+                await asyncio.gather(client.post("/v1/triage", json=body, headers={"X-API-Key": KEY}), health())
+            )
+
+    triaged, healthy = asyncio.run(both())
+    assert (triaged.status_code, triaged.json()["ticket"], healthy.status_code) == (200, "#1", 200)
+    assert loop_was_free == [True]

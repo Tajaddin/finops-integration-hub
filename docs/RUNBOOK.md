@@ -33,7 +33,8 @@ More than 20 won deals have waited 30 minutes for a person.
    book`, `discount ...% is not an approved discount`, or a parked ERP error (`reason: transient`).
 2. Bad data is fixed in the CRM by sales ops; the next sync sees the change (its modification time moves past the
    cursor), invoices the deal and resolves the dead letter.
-3. Transient ones: once the ERP is healthy, `uv run hub sync --full` re-tries them.
+3. Transient ones: every sync re-tries them, up to 5 attempts in all (`attempts` in the list); one still open
+   after that needs `uv run hub sync --full` once the ERP is healthy.
 
 ## MoneyMismatchFound
 
@@ -62,7 +63,24 @@ Triage p95 above 20 s for ten minutes.
 2. `nvidia-smi` shows another process on the GPU (training, a game): it competes for the same memory.
 3. While slow, n8n retries the call (5 tries, 5 s apart) with the same Idempotency-Key, so nothing is filed twice.
 
+## TriageTicketUnfiled
+
+A triaged message has waited 10 minutes for its ticket (or the ticket's draft note): the ticket system failed on
+all five of n8n's tries. The message and its triage are saved in `triage_run`; nothing was sent to anyone.
+
+1. Fix the ticket system first (`docker compose logs --tail 100 hub` names it, `system=zammad`).
+2. List the runs: `docker compose exec pg psql -U hub -d hub -c "SELECT id, idempotency_key, sender, ticket_ref,
+   received_at FROM triage_run WHERE ticket_noted_at IS NULL AND idempotency_key IS NOT NULL ORDER BY id"`.
+3. Replay each one with its key. The hub answers from the saved run (the body is not triaged again) and files only
+   what is missing, the ticket or just its note: `curl -s -X POST 127.0.0.1:8000/v1/triage -H "X-API-Key:
+   $HUB_API_KEY" -H "Idempotency-Key: <key>" -H "Content-Type: application/json" -d '{"message": "replay",
+   "sender": "<sender>"}'`. A 409 means another request is filing it: retry after a minute.
+4. If the ticket system timed out after it had created the ticket, the hub never learned its id and the replay
+   opens a second one: close the older duplicate.
+
 ## HubErrorRate
 
 More than 5% of API calls fail. The hub's JSON logs name the failing dependency (`system=odoo|espocrm|zammad`).
-Fix the dependency; the callers (n8n, EspoCRM) retry, and every write path is idempotent.
+Fix the dependency; the callers (n8n, EspoCRM) retry. Syncs and webhooks are idempotent; a triage retry files only
+what its first call could not, except a ticket the ticket system created before timing out, which is filed twice
+(see TriageTicketUnfiled for messages still without one).

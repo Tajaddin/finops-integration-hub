@@ -24,7 +24,7 @@ hub can crash at any point, Odoo can time out after committing, and n8n may trig
    clock skew and same-second updates cannot drop a deal; re-reading is harmless because of (1).
 6. **Dead letters** record deals that need a person (bad data) or that failed transiently after retries, with the
    reason; fixing the deal in the CRM moves its modification time past the cursor, the next run invoices it and
-   resolves the dead letter.
+   resolves the dead letter. Transient ones are re-tried by every run, cursor or not, up to 5 attempts in all.
 
 ## Evidence
 

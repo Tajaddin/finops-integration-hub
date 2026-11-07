@@ -12,7 +12,8 @@
 | POST /webhooks/espocrm | EspoCRM | HMAC signature |
 
 Everything that touches a system is synchronous inside a worker thread (FastAPI runs plain `def` endpoints in its
-thread pool); a CRM webhook is acknowledged at once and processed in the background.
+thread pool, and the two `async` ones hand each blocking call to the same pool, so a slow ERP or ticket system never
+stalls the event loop); a CRM webhook is acknowledged at once and processed in the background.
 """
 
 from __future__ import annotations
@@ -29,7 +30,9 @@ from prometheus_client import CONTENT_TYPE_LATEST
 from pydantic import BaseModel, EmailStr, Field
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
 from hub import log, metrics, tracing
@@ -91,16 +94,15 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     api_key = ApiKeyCheck(settings.api_key.get_secret_value())
 
     def caller(request: Request) -> str:
-        # one bucket per API key (n8n is one trusted caller behind one address), one per address for anonymous calls
-        presented = request.headers.get("x-api-key")
-        return (
-            "key:" + hashlib.sha256(presented.encode()).hexdigest()[:16] if presented else get_remote_address(request)
-        )
+        # one bucket for the API key (n8n is one trusted caller behind one address), one per address for everyone
+        # else: a made-up key on each call must not buy a fresh bucket
+        return "api-key" if api_key.ok(request.headers.get("x-api-key")) else get_remote_address(request)
 
     limiter = Limiter(key_func=caller, default_limits=[settings.rate_limit])  # per app, see ADR 0005
     app = FastAPI(title="finops-integration-hub", version="1.0.0", docs_url="/docs", redoc_url=None)
     app.state.limiter = limiter
     app.state.deps = deps
+    app.add_middleware(SlowAPIMiddleware)  # applies default_limits to the routes without a limit of their own
 
     @app.exception_handler(RateLimitExceeded)
     def _rate_limited(_request: Request, _exc: RateLimitExceeded) -> JSONResponse:
@@ -144,6 +146,10 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
             metrics.DEAD_LETTERS_OPEN.set(len(deps.store.open_dead_letters(settings.crm)))
         except Exception:  # the scrape must not fail because the database blinked
             logger.warning("metrics_dead_letters_unavailable")
+        try:
+            metrics.TRIAGE_UNFILED.set(deps.store.unfiled_triage_runs() if settings.tickets != "none" else 0)
+        except Exception:
+            logger.warning("metrics_triage_unfiled_unavailable")
         return Response(metrics.exposition(), media_type=CONTENT_TYPE_LATEST)
 
     @app.post("/v1/sync/runs", dependencies=authed)
@@ -188,16 +194,20 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     ) -> dict[str, Any]:
         """Triage one inbound message, file it as a ticket with the draft reply as an internal note, and say whether
         a person must approve it first (n8n then sends the approval request). A retried call with the same
-        Idempotency-Key gets the first answer back and files nothing new."""
+        Idempotency-Key gets the first answer back and triages nothing new; it only files the ticket, or its note,
+        if the first call failed to."""
         from hub.triage.workflow import triage
 
         if deps.triage is None:
             raise HTTPException(503, "triage is not configured")
-        if idempotency_key and (seen := deps.store.triage_by_key(idempotency_key)) is not None:
-            return _triage_answer(seen["id"], seen["result"], seen["ticket_ref"], replay=True)
+        seen = await run_in_threadpool(deps.store.triage_by_key, idempotency_key) if idempotency_key else None
+        if seen is not None:
+            ref = seen["ticket_ref"] if seen["ticket_noted_at"] else await run_in_threadpool(file_ticket, seen["id"])
+            return _triage_answer(seen["id"], seen["result"], ref, replay=True)
+        workflow = await run_in_threadpool(deps.triage)  # built (indexes, model clients) on first use
         langfuse = tracing.setup(settings)
         if langfuse is None:
-            result = await triage(deps.triage(), body.message)
+            result = await triage(workflow, body.message, str(body.sender))
         else:  # one trace per turn; LlamaIndex's retrieval and LLM calls nest under it (OpenInference)
             from langfuse import propagate_attributes
 
@@ -207,7 +217,7 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
                 ) as span,
                 propagate_attributes(user_id=tracing.sender_id(str(body.sender)), trace_name="triage", tags=["triage"]),
             ):
-                result = await triage(deps.triage(), body.message)
+                result = await triage(workflow, body.message, str(body.sender))
                 span.update(
                     output={
                         "intent": result.intent,
@@ -218,30 +228,49 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
                     metadata={"path": result.path, "citations": result.citations, "replaced": result.reply_replaced},
                 )
         data = result.as_dict()
-        run_id = deps.store.save_triage(body.sender, body.message, data, idempotency_key)
+        run_id = await run_in_threadpool(deps.store.save_triage, body.sender, body.message, data, idempotency_key)
         metrics.TRIAGE.labels(result.queue, "needs_approval" if result.needs_approval else "routed").inc()
         metrics.TRIAGE_SECONDS.observe(result.seconds)
-        ticket_ref = None
+        return _triage_answer(run_id, data, await run_in_threadpool(file_ticket, run_id))
+
+    def file_ticket(run_id: int) -> str | None:
+        """File the run's ticket with the draft as an internal note; the ticket's ref, or None with no ticket system.
+        The run is saved first, so when the ticket system fails the request fails, and the caller's retry with the
+        same Idempotency-Key files whatever is still missing (the ticket, or only its note)."""
         sink = deps.tickets()
-        if sink is not None:
-            title = f"[{result.intent or 'unclassified'}] " + " ".join(body.message.split())[:120]
-            tags = ["triage", result.intent or "unclassified"] + (
-                ["awaiting-approval"] if result.needs_approval else []
-            )
-            if result.suspected_injection:
-                tags.append("suspected-injection")
-            ticket = sink.open(
-                title, body.message, queue=result.queue, priority=result.priority, tags=tags, customer=str(body.sender)
-            )
-            note = f"Draft reply ({', '.join(result.citations) or 'no citations'}):\n\n{result.reply}"
-            if result.invoices:
-                note += "\n\nInvoices in the ERP: " + json.dumps(result.invoices)
-            if result.needs_approval:
-                note += f"\n\nRefund of {result.refund_amount} needs finance approval before anyone replies."
-            sink.note(ticket.id, note)
-            deps.store.set_triage_ticket(run_id, sink.name, ticket.id, ticket.ref)
-            ticket_ref = ticket.ref
-        return _triage_answer(run_id, data, ticket_ref)
+        if sink is None:
+            return None
+        run = deps.store.claim_triage_ticket(run_id)
+        if run is None:
+            filed = deps.store.get_triage(run_id)
+            if filed is not None and filed["ticket_noted_at"]:  # filed by the request this one raced
+                return filed["ticket_ref"]
+            raise HTTPException(409, "the ticket for this message is being filed; retry shortly")
+        result = run["result"]
+        try:
+            ticket_id, ticket_ref = run["ticket_id"], run["ticket_ref"]
+            if ticket_id is None:
+                title = f"[{result['intent'] or 'unclassified'}] " + " ".join(run["message"].split())[:120]
+                tags = ["triage", result["intent"] or "unclassified"]
+                tags += ["awaiting-approval"] if result["needs_approval"] else []
+                tags += ["suspected-injection"] if result["suspected_injection"] else []
+                ticket = sink.open(
+                    title, run["message"], queue=result["queue"], priority=result["priority"], tags=tags,
+                    customer=run["sender"],
+                )  # fmt: skip
+                deps.store.set_triage_ticket(run_id, sink.name, ticket.id, ticket.ref)
+                ticket_id, ticket_ref = ticket.id, ticket.ref
+            note = f"Draft reply ({', '.join(result['citations']) or 'no citations'}):\n\n{result['reply']}"
+            if result["invoices"]:
+                note += "\n\nInvoices in the ERP: " + json.dumps(result["invoices"])
+            if result["needs_approval"]:
+                note += f"\n\nRefund of {result['refund_amount']} needs finance approval before anyone replies."
+            sink.note(ticket_id, note)
+            deps.store.triage_ticket_noted(run_id)
+        except BaseException:
+            deps.store.release_triage_ticket(run_id, run["ticket_filing_until"])
+            raise
+        return ticket_ref
 
     @app.post("/v1/triage/{run_id}/decision", dependencies=authed)
     def triage_decision(run_id: int, body: Decision) -> dict[str, Any]:
@@ -261,8 +290,8 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
     async def espocrm_webhook(
         request: Request, background: BackgroundTasks, signature: Annotated[str | None, Header()] = None
     ) -> dict[str, Any]:
-        body = await request.body()
-        if len(body) > MAX_WEBHOOK_BYTES:
+        body = await _read_at_most(request, MAX_WEBHOOK_BYTES)
+        if body is None:
             metrics.WEBHOOKS.labels("espocrm", "too_large").inc()
             raise HTTPException(413, "payload too large")
         # read per delivery: the bootstrap writes (and rotates) the secret while the hub is running
@@ -275,7 +304,9 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
         except (ValueError, TypeError) as exc:
             metrics.WEBHOOKS.labels("espocrm", "malformed").inc()
             raise HTTPException(422, "expected a JSON array of records with an id") from exc
-        if not deps.store.accept_delivery(hashlib.sha256(body).hexdigest(), "espocrm", len(records)):
+        if not await run_in_threadpool(
+            deps.store.accept_delivery, hashlib.sha256(body).hexdigest(), "espocrm", len(records)
+        ):
             metrics.WEBHOOKS.labels("espocrm", "replay").inc()
             return {"accepted": 0, "replay": True}
         metrics.WEBHOOKS.labels("espocrm", "accepted").inc()
@@ -283,6 +314,20 @@ def create_app(settings: Settings, deps: Deps | None = None) -> FastAPI:  # noqa
         return {"accepted": len(records)}
 
     return app
+
+
+async def _read_at_most(request: Request, limit: int) -> bytes | None:
+    """The request body, or None as soon as it is known to be over `limit`: from Content-Length, or while it
+    streams in (a chunked body has none), so an oversized body is never held in memory whole."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > limit:
+        return None
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > limit:
+            return None
+    return bytes(body)
 
 
 def _triage_answer(run_id: int, result: dict[str, Any], ticket_ref: str | None, replay: bool = False) -> dict[str, Any]:

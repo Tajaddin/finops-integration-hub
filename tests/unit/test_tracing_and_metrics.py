@@ -43,6 +43,7 @@ def test_every_metric_in_alerts_and_dashboard_exists() -> None:
             metrics.TICKETS,
             metrics.WEBHOOKS,
             metrics.TRIAGE,
+            metrics.TRIAGE_UNFILED,
             metrics.TRIAGE_SECONDS,
             metrics.HTTP_SECONDS,
         )

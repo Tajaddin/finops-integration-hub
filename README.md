@@ -21,7 +21,7 @@ Everything runs locally in Docker with open-source software; no account or API k
 | Workflow automation: n8n schedules, retries, and an approval e-mail with a signed resume link | `n8n/workflows` |
 | LlamaIndex Workflow agent over pgvector with a local model; refunds over 500 held in code, not by the model | `src/hub/triage`, [ADR 0006](docs/adr/0006-triage-as-a-workflow-with-a-cascade.md), [model card](docs/MODEL-CARD.md) |
 | LLM observability: self-hosted Langfuse v4, OpenInference instrumentation | `src/hub/tracing.py`, `scripts/langfuse_report.py` |
-| Prometheus metrics, 7 alert rules with promtool unit tests, Grafana dashboard, runbook | `observability`, [RUNBOOK](docs/RUNBOOK.md) |
+| Prometheus metrics, 8 alert rules with promtool unit tests, Grafana dashboard, runbook | `observability`, [RUNBOOK](docs/RUNBOOK.md) |
 | Terraform for an Oracle Cloud Always Free VM (validated in CI, not applied) | `infra/terraform`, [DEPLOY](docs/DEPLOY.md) |
 | Scrum: backlog, 4 sprints, a pull request and a retro per sprint | [board](https://github.com/users/Tajaddin/projects/4), [retros](docs/sprints) |
 
@@ -47,9 +47,9 @@ The triage agent needs [Ollama](https://ollama.com) with `ollama pull qwen2.5:7b
 `make triage-index`. Without a GPU, `HUB_TRIAGE_MODEL=fake` runs the workflow with a deterministic stand-in (CI uses
 it; it tests the wiring, not the model).
 
-Tests: `make check` (ruff, mypy, 89 unit and contract tests with a Testcontainers Postgres, 74% line
-coverage) and `make test-integration` (6 tests against the running stack). Before every push: `make secret-scan`
-(gitleaks over the history and the working tree).
+Tests: `make check` (ruff, mypy, 211 unit and contract tests with a Testcontainers Postgres; 77% line
+coverage by `make test` on 2026-11-06 at a827f45) and `make test-integration` (6 tests against the running stack).
+Before every push: `make secret-scan` (gitleaks over the history and the working tree).
 
 ## Measured results
 

@@ -200,7 +200,9 @@ def triage_eval(
     started = time.time()
 
     async def run_all() -> dict[str, Any]:
-        workflow = runtime.workflow(settings, factory.erp(settings), model=name)
+        erp = factory.erp(settings)
+        workflow = runtime.workflow(settings, erp, model=name)
+        workflow.lookup_invoice = runtime.invoice_lookup(erp, check_owner=False)  # the eval messages have no sender
         return {
             "model": name,
             "embedding_model": settings.embed_model,
@@ -241,7 +243,9 @@ def triage_agent_eval(
     name = model or settings.triage_model
 
     async def run_all() -> dict[str, Any]:
-        workflow = runtime.workflow(settings, factory.erp(settings), model=name)
+        erp = factory.erp(settings)
+        workflow = runtime.workflow(settings, erp, model=name)
+        workflow.lookup_invoice = runtime.invoice_lookup(erp, check_owner=False)  # the eval messages have no sender
         threshold = settings.refund_approval_threshold
         return {
             "model": name,

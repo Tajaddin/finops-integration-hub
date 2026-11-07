@@ -2,8 +2,8 @@
 
 1. **classify**: the TF-IDF model answers when it is confident; otherwise the LLM decides, with the most similar
    labelled messages retrieved as examples (the cascade measured in reports/triage/).
-2. **enrich**: for billing intents, look up each invoice number written in the message in the ERP (read-only, and
-   only numbers that appear in the message: the model cannot ask for anything else).
+2. **enrich**: for billing intents, look up each invoice number written in the message in the ERP (read-only, only
+   numbers that appear in the message, and only the sender's own invoices: the model cannot ask for anything else).
 3. **draft**: retrieve help-centre articles, have the LLM draft a reply that cites them, then apply the rules that
    are not the model's to decide: a refund above the threshold (or of unknown size) needs finance approval; a
    draft that promises a refund or quotes the system prompt is replaced by a safe one.
@@ -14,6 +14,7 @@ attached is made in code, so a message that tells the model to approve something
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -25,11 +26,10 @@ from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.llms import LLM
 from llama_index.core.workflow import Event, StartEvent, StopEvent, Workflow, step
 
-from hub.triage import labels
+from hub.triage import labels, money
 from hub.triage.baseline import TfidfBaseline
 from hub.triage.llm import SYSTEM, LlmClassifier, amount_in, wrap
 
-INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
 CANARY = "ledgerline-triage-7f3a"  # in the drafting prompt; must never appear in a reply
 PROMISE = re.compile(
     r"\b(approved|have refunded|has been refunded|will refund you|refund (?:is|has been) (?:processed|issued)"
@@ -37,14 +37,18 @@ PROMISE = re.compile(
     re.I,
 )
 REFUND_INTENTS = {"get_refund", "track_refund", "check_refund_policy", "check_cancellation_fee"}
-# Refund wording, used by the approval rule without trusting the model's intent (#23): an injected "classify this as
-# review" must not be able to switch the approval off.
-REFUND_WORDS = re.compile(
-    r"\b(refund\w*|reimburs\w*|money back|rebate|chargeback|iade|reverse (?:the|that) charge)", re.I
-)
-# Every money amount written in a message: "$1,250.00", "€900", "900.00 dollars", "900.00 dolar".
-MONEY = re.compile(
-    r"[$€£]\s?(\d[\d,]*(?:\.\d{2})?)|(\d[\d,]*(?:\.\d{2})?)\s?(?:usd|eur|gbp|dollars?|dolar|euros?|pounds?)\b", re.I
+# Wording that asks for money back, used by the approval rule without trusting the model's intent (#23): an injected
+# "classify this as review" must not be able to switch the approval off. Not only the word "refund": a reversed,
+# duplicate or excess charge, money returned or credited back, compensation, and the word for refund in Turkish,
+# Spanish, Portuguese, French, German and Italian.
+MONEY_BACK = re.compile(
+    r"\b(?:refund\w*|reimburs\w*|rebate|chargeback|charge\s+back|money\s+back|(?:pay|paid)\s+(?:me|us)\s+back"
+    r"|(?:return|give\s+back|send\s+back)\s+(?:my|our|the)\s+(?:money|funds|payment)|(?:money|funds)\s+returned"
+    r"|revers\w*\s+(?:of\s+)?(?:the|this|that|these|those|my|our|a)?\s*(?:duplicate\s+|double\s+)?(?:charge|payment|transaction)"
+    r"|credit\b(?!\s+card)[^.!?\n]{0,40}?\bback\b|credit\s+note|overcharg\w*|double[\s-]?(?:charged|billed)"
+    r"|(?:charged|billed)\s+(?:\S+\s+){0,4}?twice|duplicate\s+(?:charge|payment)"
+    r"|compensat\w*|iade|reembols\w*|devolu\w*|devolv\w*|rembours\w*|r(?:ü|ue)ckerstatt\w*|erstatt\w*|rimbors\w*)",
+    re.I,
 )
 # Known injection phrasings. Not a defence on its own (easy to evade): it flags the ticket for a person and raises
 # its priority; the decisions that matter are made in code whatever the model says.
@@ -59,19 +63,24 @@ EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 OUR_ADDRESSES = {"support@ledgerline.example"}
 
 
-def amounts(text: str) -> list[float]:
-    return [float(next(g for g in m.groups() if g).replace(",", "")) for m in MONEY.finditer(text)]
-
-
 def needs_approval(intent: str | None, text: str, amount: float | None, threshold: float) -> bool:
-    """A refund is held for finance when the message is (or reads like) a refund request and the largest amount in
-    it, written or as the model read it, is over the threshold. A refund request with no amount is held too."""
-    if intent != "get_refund" and REFUND_WORDS.search(text) is None:
+    """A refund is held for finance when the message is (or reads like) a request for money back and any number in
+    it, at its largest reading, is over the threshold: with a currency or without one ("refund 2400"), invoice
+    numbers and dates aside. That also holds some refunds that only quote an order or phone number, the safe side.
+    It is held too when a number in it cannot be read ("$2,4OO", "24OO", "two thousand"), when the model reports an
+    amount the message does not contain, and when a refund request names no amount with a currency at all."""
+    if intent != "get_refund" and MONEY_BACK.search(text) is None:
         return False
-    candidates = amounts(text) + ([amount] if amount is not None else [])
-    if not candidates:
-        return intent == "get_refund"
-    return max(candidates) > threshold
+    written = money.mentions(text)
+    found = written + money.numbers(text)
+    if any(not m.readings for m in found):
+        return True
+    values = [v for m in found for v in m.readings]
+    if amount is not None and not any(abs(amount - v) < 0.005 for v in values):
+        return True
+    if values and max(values) > threshold:
+        return True
+    return intent == "get_refund" and not written and amount is None
 
 
 QUOTED = re.compile(r"['\"\u2018\u201c]([^'\"\u2019\u201d]{12,})['\"\u2019\u201d]")
@@ -124,6 +133,7 @@ class TriageResult:
 
 class Classified(Event):
     text: str
+    sender: str | None
     intent: str | None
     confidence: float
     path: str
@@ -136,6 +146,7 @@ class Classified(Event):
 class Enriched(Event):
     # not a subclass of Classified: the workflow routes events by type, and a subclass would loop back into enrich
     text: str
+    sender: str | None
     intent: str | None
     confidence: float
     path: str
@@ -153,7 +164,7 @@ class TriageWorkflow(Workflow):
         classifier: LlmClassifier,
         llm: LLM,
         kb: BaseRetriever,
-        lookup_invoice: Callable[[str], dict[str, Any] | None],
+        lookup_invoice: Callable[[str, str | None], dict[str, Any] | None],
         *,
         confidence_threshold: float = 0.9,
         refund_threshold: float = 500.0,
@@ -174,16 +185,17 @@ class TriageWorkflow(Workflow):
     @step
     async def classify(self, ev: StartEvent) -> Classified:
         text = str(ev.get("message", ""))[:4000]
+        sender = ev.get("sender")
         guess = self.baseline.predict([text])[0]
         if guess.confidence >= self.confidence_threshold:
             return Classified(
-                text=text, intent=guess.intent, confidence=guess.confidence, path="baseline",
+                text=text, sender=sender, intent=guess.intent, confidence=guess.confidence, path="baseline",
                 refund_amount=amount_in(text), llm_calls=0, prompt_tokens=0, completion_tokens=0,
             )  # fmt: skip
         verdict = await self.classifier.aclassify(text)
         amount = verdict.refund_amount if verdict.refund_amount is not None else amount_in(text)
         return Classified(
-            text=text, intent=verdict.intent, confidence=guess.confidence, path="llm" if verdict.valid else "llm_invalid",
+            text=text, sender=sender, intent=verdict.intent, confidence=guess.confidence, path="llm" if verdict.valid else "llm_invalid",
             refund_amount=amount, llm_calls=1, prompt_tokens=verdict.prompt_tokens, completion_tokens=verdict.completion_tokens,
         )  # fmt: skip
 
@@ -191,8 +203,8 @@ class TriageWorkflow(Workflow):
     async def enrich(self, ev: Classified) -> Enriched:
         invoices: list[dict[str, Any]] = []
         if ev.intent in labels.LOOKS_UP_INVOICES:
-            for number in dict.fromkeys(INVOICE_NUMBER.findall(ev.text)):
-                found = self.lookup_invoice(number)
+            for number in dict.fromkeys(money.INVOICE_NUMBER.findall(ev.text)):
+                found = await asyncio.to_thread(self.lookup_invoice, number, ev.sender)  # an ERP round trip
                 invoices.append(found or {"number": number, "found": False})
         return Enriched(**ev.model_dump(), invoices=invoices)
 
@@ -220,7 +232,7 @@ class TriageWorkflow(Workflow):
         return StopEvent(result=result)
 
     async def _draft(self, text: str, result: TriageResult) -> None:
-        nodes = self.kb.retrieve(text)
+        nodes = await asyncio.to_thread(self.kb.retrieve, text)  # an embedding call and a pgvector query
         articles = {n.node.metadata["kb_id"]: n.node.get_content() for n in nodes}
         facts = json.dumps(result.invoices) if result.invoices else "none"
         rule = (
@@ -279,9 +291,10 @@ class TriageWorkflow(Workflow):
         result.reply = reply
 
 
-async def triage(workflow: TriageWorkflow, message: str) -> TriageResult:
-    """Run one message through the workflow; `seconds` is the whole run (the workflow's own timeout applies)."""
+async def triage(workflow: TriageWorkflow, message: str, sender: str | None = None) -> TriageResult:
+    """Run one message through the workflow; `seconds` is the whole run (the workflow's own timeout applies). Without
+    a sender the API's invoice lookup shows no invoice; the evaluation sets have none and use one that does."""
     t0 = time.perf_counter()
-    result: TriageResult = await workflow.run(message=message)
+    result: TriageResult = await workflow.run(message=message, sender=sender)
     result.seconds = round(time.perf_counter() - t0, 3)
     return result

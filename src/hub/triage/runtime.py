@@ -12,6 +12,7 @@ from llama_index.core.base.base_retriever import BaseRetriever
 
 from hub.config import Settings
 from hub.connectors.odoo import INVOICE_FIELDS, OdooErp, to_invoice
+from hub.domain import normalise_domain
 from hub.triage import index
 from hub.triage.baseline import TfidfBaseline
 from hub.triage.data import messages, split
@@ -79,16 +80,38 @@ def retrievers(settings: Settings, examples_k: int = 8, kb_k: int = 3) -> tuple[
     return examples, kb
 
 
-def invoice_lookup(erp: OdooErp) -> Callable[[str], dict[str, Any] | None]:
-    """Read one invoice by its number. Read-only, and the workflow only passes numbers written in the message."""
+def belongs_to(sender: str, partner: dict[str, Any]) -> bool:
+    """The sender writes for this ERP customer: their e-mail domain is the customer's website domain, normalised as
+    the sync matches customers (no scheme, no www.), or their address is the customer's own e-mail. A subdomain does
+    not count: a customer whose website sits under a shared domain would match every sender under it."""
+    address = sender.strip().lower()
+    domain = address.rpartition("@")[2]
+    site = normalise_domain(partner.get("website") or None)
+    own = str(partner.get("email") or "").strip().lower()
+    if own and address == own:
+        return True
+    return site is not None and domain == site
 
-    def lookup(number: str) -> dict[str, Any] | None:
+
+def invoice_lookup(erp: OdooErp, *, check_owner: bool = True) -> Callable[[str, str | None], dict[str, Any] | None]:
+    """Read one invoice by its number, for the sender of the message. Read-only, the workflow only passes numbers
+    written in the message, and another customer's invoice reads as not found: a message that names someone else's
+    invoice number learns nothing about it. `check_owner=False` is for the evaluation sets only: their messages have
+    no sender, and their drafts should carry the invoice facts a customer asking about their own invoice gets."""
+
+    def lookup(number: str, sender: str | None) -> dict[str, Any] | None:
+        if check_owner and not sender:
+            return None
         rows = erp.odoo.search_read(
             "account.move", [["move_type", "=", "out_invoice"], ["name", "=", number]], INVOICE_FIELDS, limit=1
         )
         if not rows:
             return None
         inv = to_invoice(rows[0])
+        if check_owner:
+            partner = erp.odoo.search_read("res.partner", [["id", "=", inv.partner_id]], ["website", "email"], limit=1)
+            if not partner or not belongs_to(sender or "", partner[0]):
+                return None
         return {
             "number": inv.number,
             "found": True,

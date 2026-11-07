@@ -3,9 +3,9 @@
 ## What it does
 
 Routes an inbound customer message to one of 27 intents (11 categories), a helpdesk queue and a priority; looks up
-invoice numbers written in the message in the ERP (read-only); drafts a reply that cites help-centre articles for a
-person to review; holds refunds above 500 (or of unknown size) for finance approval. It never sends anything to a
-customer and never changes the ERP. Design in ADR 0006.
+invoice numbers written in the message in the ERP (read-only, the sender's own invoices only); drafts a reply that
+cites help-centre articles for a person to review; holds refunds above 500 (or of unknown size) for finance
+approval. It never sends anything to a customer and never changes the ERP. Design in ADR 0006.
 
 ## Components
 
@@ -84,8 +84,31 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   few hundred real messages and re-run `make triage-eval`.
 - The injection pattern list is easy to evade; it only flags tickets. The defences that hold are structural: no
   write tools, approvals decided in code, drafts reviewed by a person, guards on what a draft may contain.
-- English only in testing (one Turkish injection in the hold-out). Amount extraction knows $, EUR and GBP
-  symbols and a few currency words.
+- English only in testing (one Turkish injection in the hold-out). Amounts are read with a symbol or ISO code on
+  either side, grouped with commas, dots, spaces or apostrophes (straight or curly), with k/m suffixes, glued or
+  after a space ("2.4 k", "2.4 M") (`src/hub/triage/money.py`). In a request for money back every other number
+  counts as a possible amount too, invoice numbers and dates aside, so "refund 2400" with no currency is held, and
+  so is a small refund that quotes an order or phone number. A number it cannot read holds the refund: letters
+  glued to it, directly, after a separator or, after a space, as a group of three look-alike characters ("24OO",
+  "2S00", "1,OOO", "1 OOO"). With a currency before the number any letters count ("$95USD", "$10oz"); without one
+  a whole token that is a unit, an ordinal, a time or a currency still reads as the number ("10oz", "2nd", "10am",
+  "2400USD"), the litre only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501); so
+  a letter-O typo in an id ("order 1O23") holds too, the safe side. So does an amount in words ("two thousand") or
+  an amount the model reports that is not in the message. The rule does not read an invoice's own amount: a refund
+  that names none ("refund INV/2026/00012 in full") is held only when the model calls it a refund request, and not
+  when the message also names a small amount. Invisible format characters (zero-width spaces and joiners, soft
+  hyphens) and combining marks are dropped before reading, so they cannot split an amount; a bidi override
+  (U+202D, U+202E), which reverses the digits on screen, or an isolate (U+2066-2068), which can reorder the runs
+  after it, holds the refund instead.
+- Not caught by the reader: look-alike letters before a number ("I,200 USD" and "O,500 USD" read 200 and 500,
+  "IO,OOO USD" reads nothing), since a letter before a digit is also how product names are written ("Halo3",
+  "Pixel8"); a character between digits it does not know as a separator (a Braille blank U+2800, a backtick, a
+  prime U+2032, a middle dot, the Arabic thousands separator U+066C or a fullwidth comma reads as the digits on
+  either side, 2 and 400); symbols in place of digits ("24◯◯", "2|00" read 24 and 2); and a suffix glued to a
+  currency code after a space ("2.4 kUSD" reads 2.4). Held although harmless: any other letters glued to a number
+  in a money-back message, such as sizes and specs ("2XL", "3D", "16GB", "12V", "1080p", "2FA"), durations
+  ("3days", "30sec") and seat, size and stock codes ("seat 2b", "42EU", "SKU 24AB"). Bitext has none of these, so
+  their rate on real mail is unknown; add the common ones to the unit list in `money.py` when it matters.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy

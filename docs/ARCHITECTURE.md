@@ -55,8 +55,8 @@ when a later run no longer finds it (ADR 0004). n8n runs it nightly after writin
 
 **Triage** (`src/hub/triage/`, ADR 0006). A LlamaIndex Workflow: a TF-IDF classifier answers when confident, else
 the local LLM with retrieved labelled examples; billing intents look up the invoice numbers written in the message
-(read-only); the LLM drafts a reply citing help-centre articles; refunds above 500 are held for approval by code,
-and n8n e-mails finance a signed approve/reject link. Every turn is a Langfuse trace.
+(read-only, the sender's own invoices only); the LLM drafts a reply citing help-centre articles; refunds above 500
+are held for approval by code, and n8n e-mails finance a signed approve/reject link. Every turn is a Langfuse trace.
 
 ## Where state lives
 
