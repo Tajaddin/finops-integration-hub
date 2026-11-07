@@ -97,9 +97,9 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   an amount the model reports that is not in the message. The rule does not read an invoice's own amount: a refund
   that names none ("refund INV/2026/00012 in full") is held only when the model calls it a refund request, and not
   when the message also names a small amount. Invisible format characters (zero-width spaces and joiners, soft
-  hyphens) and combining marks are dropped before reading, so they cannot split an amount; a bidi override or
-  isolate (U+202D, U+202E, U+2066-2068), which shows the characters after it in another order, holds the refund
-  instead.
+  hyphens) and combining marks are dropped before reading, so they cannot split an amount; a bidi override
+  (U+202D, U+202E), which reverses the digits on screen, or an isolate (U+2066-2068), which can reorder the runs
+  after it, holds the refund instead.
 - Not caught by the reader: look-alike letters before a number ("I,200 USD" and "O,500 USD" read 200 and 500,
   "IO,OOO USD" reads nothing), since a letter before a digit is also how product names are written ("Halo3",
   "Pixel8"); a character between digits it does not know as a separator (a Braille blank U+2800, a backtick, a

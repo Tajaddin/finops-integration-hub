@@ -12,8 +12,8 @@ whole token that is a unit, an ordinal, a time or a currency still reads as the 
 amount need not carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other
 number in the message (`numbers`), invoice numbers and dates aside. Invisible format characters (zero-width spaces
 and joiners, soft hyphens) and combining marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen; a
-bidi override or isolate, which shows the characters after it in another order, makes the message unreadable
-instead.
+bidi override, which reverses the digits on screen, or an isolate, which can reorder the runs after it, makes the
+message unreadable instead.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ import unicodedata
 from dataclasses import dataclass
 
 INVOICE_NUMBER = re.compile(r"\bINV/\d{4}/\d{5}\b")
-# A bidi override or isolate shows the characters after it in another order ("\u202e004,2 USD" is 2,400 USD on
-# screen), so the reader cannot tell what the person saw: the message is reported as unreadable.
+# A bidi override reverses the digits on screen ("\u202e004,2 USD" is 2,400 USD) and an isolate can reorder the
+# runs after it, so the reader cannot tell what the person saw: the message is reported as unreadable.
 _BIDI = "\u202d\u202e\u2066\u2067\u2068"
 BIDI = re.compile(rf"[{_BIDI}][^\n]*")
 _PREFIXED_DOLLAR = r"(?:US|CA|AU|NZ|HK|SG|C|A|R|S)\$"
