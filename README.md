@@ -47,9 +47,9 @@ The triage agent needs [Ollama](https://ollama.com) with `ollama pull qwen2.5:7b
 `make triage-index`. Without a GPU, `HUB_TRIAGE_MODEL=fake` runs the workflow with a deterministic stand-in (CI uses
 it; it tests the wiring, not the model).
 
-Tests: `make check` (ruff, mypy, 89 unit and contract tests with a Testcontainers Postgres, 74% line
-coverage) and `make test-integration` (6 tests against the running stack). Before every push: `make secret-scan`
-(gitleaks over the history and the working tree).
+Tests: `make check` (ruff, mypy, 211 unit and contract tests with a Testcontainers Postgres; 77% line
+coverage by `make test` on 2026-11-06 at a827f45) and `make test-integration` (6 tests against the running stack).
+Before every push: `make secret-scan` (gitleaks over the history and the working tree).
 
 ## Measured results
 
