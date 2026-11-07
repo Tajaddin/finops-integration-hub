@@ -95,7 +95,7 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   thousand") or an amount the model reports that is not in the message. The rule does not read an invoice's own
   amount: a refund that names none ("refund INV/2026/00012 in full") is held only when the model calls it a refund
   request, and not when the message also names a small amount. Invisible format characters (zero-width spaces and
-  joiners, soft hyphens) are dropped before reading, so they cannot split an amount.
+  joiners, soft hyphens) and combining marks are dropped before reading, so they cannot split an amount.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy

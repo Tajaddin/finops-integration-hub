@@ -234,6 +234,7 @@ def test_guards_replace_parroted_answers_and_outside_addresses() -> None:
         ("We will try 3 more times; else refund EUR 95.00.", 95.0),  # "try" is not a currency
         ("Refund...2 400 USD please.", 2400.0),  # punctuation before a number, not a digit, does not hide it
         ("Refund 2\N{ZERO WIDTH SPACE}400 USD please.", 2400.0),  # an invisible character does not split it
+        ("Refund 2\N{COMBINING GRAPHEME JOINER}400 USD please.", 2400.0),  # nor an invisible combining mark
     ],
 )
 def test_money_is_read_in_every_common_format(text: str, value: float) -> None:
@@ -291,6 +292,7 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("review", "Please refund 2\N{ZERO WIDTH SPACE}400 USD for the seats.", None),  # invisible characters
         ("review", "Please refund 2\N{SOFT HYPHEN}400 USD for the seats.", None),
         ("review", "Please refund 2\N{ZERO WIDTH JOINER}400 for the seats.", None),
+        ("review", "Please refund 2\N{COMBINING GRAPHEME JOINER}400 USD for the seats.", None),  # invisible marks
         ("get_refund", "Please refund 2,400 for the seats.", 240.0),
         ("get_refund", "Please refund $300 for the seats.", 30.0),
         (

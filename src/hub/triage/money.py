@@ -8,8 +8,8 @@ the refund rather than guess; so is any number with letters glued to it ("24OO",
 a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"), the litre only as an upper-case L,
 since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not carry a currency at all ("refund
 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message (`numbers`), invoice
-numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft hyphens) are dropped
-first, so "2<ZWSP>400" is 2,400 as it is on screen.
+numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft hyphens) and combining
+marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen.
 """
 
 from __future__ import annotations
@@ -133,7 +133,8 @@ def _blank(pattern: re.Pattern[str], text: str) -> str:
 
 
 def _masked(text: str) -> str:
-    text = "".join(c for c in text if unicodedata.category(c) != "Cf")  # zero-width spaces, joiners, soft hyphens
+    # invisible format characters (zero-width spaces and joiners, soft hyphens) and combining marks
+    text = "".join(c for c in text if unicodedata.category(c) not in {"Cf", "Mn", "Me"})
     return _blank(INVOICE_NUMBER, text)  # invoice numbers are not amounts
 
 
