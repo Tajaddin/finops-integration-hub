@@ -85,13 +85,13 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
 - The injection pattern list is easy to evade; it only flags tickets. The defences that hold are structural: no
   write tools, approvals decided in code, drafts reviewed by a person, guards on what a draft may contain.
 - English only in testing (one Turkish injection in the hold-out). Amounts are read with a symbol or ISO code on
-  either side, grouped with commas, dots, spaces or apostrophes (straight or curly), with k/m suffixes, k also
-  after a space ("2.4 k") (`src/hub/triage/money.py`). In a request for money back every other number counts as a
-  possible amount too, invoice numbers and dates aside, so "refund 2400" with no currency is held, and so is a
-  small refund that quotes an order or phone number. A number it cannot read holds the refund: letters glued to
-  it, directly, after a separator or, after a space, as a group of three look-alike characters ("24OO", "2S00",
-  "1,OOO", "1 OOO"). With a currency before the number any letters count ("$95USD", "$10oz"); without one a whole
-  token that is a unit, an ordinal, a time or a currency still reads as the number ("10oz", "2nd", "10am",
+  either side, grouped with commas, dots, spaces or apostrophes (straight or curly), with k/m suffixes, glued or
+  after a space ("2.4 k", "2.4 M") (`src/hub/triage/money.py`). In a request for money back every other number
+  counts as a possible amount too, invoice numbers and dates aside, so "refund 2400" with no currency is held, and
+  so is a small refund that quotes an order or phone number. A number it cannot read holds the refund: letters
+  glued to it, directly, after a separator or, after a space, as a group of three look-alike characters ("24OO",
+  "2S00", "1,OOO", "1 OOO"). With a currency before the number any letters count ("$95USD", "$10oz"); without one
+  a whole token that is a unit, an ordinal, a time or a currency still reads as the number ("10oz", "2nd", "10am",
   "2400USD"), the litre only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501); so
   a letter-O typo in an id ("order 1O23") holds too, the safe side. So does an amount in words ("two thousand") or
   an amount the model reports that is not in the message. The rule does not read an invoice's own amount: a refund
@@ -104,11 +104,11 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   "IO,OOO USD" reads nothing), since a letter before a digit is also how product names are written ("Halo3",
   "Pixel8"); a character between digits it does not know as a separator (a Braille blank U+2800, a backtick, a
   prime U+2032, a middle dot, the Arabic thousands separator U+066C or a fullwidth comma reads as the digits on
-  either side, 2 and 400); and symbols in place of digits ("24◯◯", "2|00" read 24 and 2). Held although harmless:
-  any other letters glued to a number in a money-back message, such as sizes and specs ("2XL", "3D", "16GB",
-  "12V", "1080p", "2FA"), durations ("3days", "30sec") and seat, size and stock codes ("seat 2b", "42EU",
-  "SKU 24AB"). Bitext has none of these, so their rate on real mail is unknown; add the common ones to the unit
-  list in `money.py` when it matters.
+  either side, 2 and 400); symbols in place of digits ("24◯◯", "2|00" read 24 and 2); and a suffix glued to a
+  currency code after a space ("2.4 kUSD" reads 2.4). Held although harmless: any other letters glued to a number
+  in a money-back message, such as sizes and specs ("2XL", "3D", "16GB", "12V", "1080p", "2FA"), durations
+  ("3days", "30sec") and seat, size and stock codes ("seat 2b", "42EU", "SKU 24AB"). Bitext has none of these, so
+  their rate on real mail is unknown; add the common ones to the unit list in `money.py` when it matters.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy
