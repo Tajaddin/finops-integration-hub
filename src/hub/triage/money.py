@@ -5,10 +5,11 @@ The rule needs the largest amount a message could mean, so where a number has tw
 currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies. A currency written with
 a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported as unreadable, and the rule holds
 the refund rather than guess; so is any number with letters glued to it ("24OO", "2S00", "1,OOO"), unless they are
-a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"). An amount need not carry a currency at
-all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message (`numbers`),
-invoice numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft hyphens) are
-dropped first, so "2<ZWSP>400" is 2,400 as it is on screen.
+a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"), the litre only as an upper-case L,
+since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not carry a currency at all ("refund
+2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message (`numbers`), invoice
+numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft hyphens) are dropped
+first, so "2<ZWSP>400" is 2,400 as it is on screen.
 """
 
 from __future__ import annotations
@@ -45,10 +46,10 @@ AFTER = re.compile(
     rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?{_DASH}\s*(?:{_SYMBOL}|(?:(?!try\b){_CODE}|(?-i:TRY))\b|{_WORD}\b)", re.I
 )
 # Without a currency a whole token that is an ordinal, a time, a unit or a currency still reads as the number it
-# follows ("2nd", "10am", "12o'clock", "10oz", "2l", "48h", "2400USD", "95C$"); "2l00" is not "2l", so it stays
-# unreadable.
+# follows ("2nd", "10am", "12o'clock", "10oz", "2L", "48h", "2400USD", "95C$"); "2l00" is not "2L", so it stays
+# unreadable, and so does "2l": a lower-case l looks like a 1, so "2,50l" could be 2,501.
 _UNIT = (
-    rf"(?:(?:st|nd|rd|th|am|pm|o['\u2019]clock|h|hrs?|mins?|oz|ml|l|lbs?|x|cm|mm|in|kg|g|{_CODE}|{_WORD})\b"
+    rf"(?:(?:st|nd|rd|th|am|pm|o['\u2019]clock|h|hrs?|mins?|oz|ml|(?-i:L)|lbs?|x|cm|mm|in|kg|g|{_CODE}|{_WORD})\b"
     rf"|{_PREFIXED_DOLLAR})"
 )
 BARE = re.compile(rf"(?P<n>{_NUMBER})(?P<s>{_SUFFIX})?(?P<x>{_GLUE}(?!{_UNIT})[^\W\d_]+)?", re.I)

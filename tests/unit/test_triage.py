@@ -285,6 +285,8 @@ def test_reading_money_takes_linear_time(run: str) -> None:
         ("review", "Please refund 2S00 USD for the seats.", None),  # any letter, not only one that looks like a digit
         ("review", "Please refund 24OOUSD for the seats.", None),  # and any letter after the look-alikes
         ("review", "Please refund 24OOs for the seats.", None),
+        ("review", "Please refund 2,50l USD for the seats.", None),  # a lower-case l looks like a 1: 2,501
+        ("review", "Please refund 250l USD for the seats.", None),
         ("review", "Please refund 24\u041e\u041e USD for the seats.", None),  # Cyrillic O
         ("review", "Please refund 2\N{ZERO WIDTH SPACE}400 USD for the seats.", None),  # invisible characters
         ("review", "Please refund 2\N{SOFT HYPHEN}400 USD for the seats.", None),
@@ -326,7 +328,7 @@ def test_large_or_unreadable_refunds_cannot_slip_past_the_hold(
         ("get_refund", "Please refund $240.00, charged on 2026-10-01 for the plan renewed March 3, 2026.", 240.0),
         ("get_refund", "Refund the $95.00 we paid on 01.10.2026 for 20 seats.", None),
         ("get_refund", "Refund the $95.00 for the 2nd seat, the 10oz mugs and the 10am session.", None),
-        ("get_refund", "Refund the $40 for the 2l bottle, the 500ml one and the 12o'clock slot.", 40.0),
+        ("get_refund", "Refund the $40 for the 2L bottle, the 500ml one and the 12o'clock slot.", 40.0),
         ("get_refund", "Refund the $40 for the 48h delay on the 2 Items I ordered.", 40.0),
         ("get_refund", "Refund the 95C$ we paid for the 2nd seat.", None),
     ],
