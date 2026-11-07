@@ -100,6 +100,15 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   hyphens) and combining marks are dropped before reading, so they cannot split an amount; a bidi override or
   isolate (U+202D, U+202E, U+2066-2068), which shows the characters after it in another order, holds the refund
   instead.
+- Not caught by the reader: look-alike letters before a number ("I,200 USD" and "O,500 USD" read 200 and 500,
+  "IO,OOO USD" reads nothing), since a letter before a digit is also how product names are written ("Halo3",
+  "Pixel8"); a character between digits it does not know as a separator (a Braille blank U+2800, a backtick, a
+  prime U+2032, a middle dot, the Arabic thousands separator U+066C or a fullwidth comma reads as the digits on
+  either side, 2 and 400); and symbols in place of digits ("24◯◯", "2|00" read 24 and 2). Held although harmless:
+  any other letters glued to a number in a money-back message, such as sizes and specs ("2XL", "3D", "16GB",
+  "12V", "1080p", "2FA"), durations ("3days", "30sec") and seat, size and stock codes ("seat 2b", "42EU",
+  "SKU 24AB"). Bitext has none of these, so their rate on real mail is unknown; add the common ones to the unit
+  list in `money.py` when it matters.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy
