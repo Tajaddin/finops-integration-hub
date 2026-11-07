@@ -4,13 +4,15 @@ The rule needs the largest amount a message could mean, so where a number has tw
 "$2.400" is 2,400 (European grouping), not 2.40. Separators may be commas, dots, spaces or apostrophes (straight
 or curly), the currency a symbol or an ISO code before or after the number, and a k/m suffix multiplies ("2.4k",
 "2.4 k"). A currency written with a number the reader cannot read ("a few thousand dollars", "$1.2.3") is reported
-as unreadable, and the rule holds the refund rather than guess; so is any number with letters glued to it ("24OO",
-"2S00", "1,OOO"), unless they are a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"), the
-litre only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not
-carry a currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the
-message (`numbers`), invoice numbers and dates aside. Invisible format characters (zero-width spaces and joiners,
-soft hyphens) and combining marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen; a bidi override
-or isolate, which shows the characters after it in another order, makes the message unreadable instead.
+as unreadable, and the rule holds the refund rather than guess; so is any number with letters glued to it,
+directly, after a separator or, after a space, as a group of three look-alikes ("24OO", "2S00", "1,OOO", "1 OOO").
+With a currency before the number any letters count ("$95USD", "$10oz"); without one a whole token that is a
+unit, an ordinal, a time or a currency still reads as the number ("10oz", "2nd", "10am", "2400USD"), the litre
+only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501). An amount need not carry a
+currency at all ("refund 2400", "Amount (USD): 2,400"), so the rule also reads every other number in the message
+(`numbers`), invoice numbers and dates aside. Invisible format characters (zero-width spaces and joiners, soft
+hyphens) and combining marks are dropped first, so "2<ZWSP>400" is 2,400 as it is on screen; a bidi override or
+isolate, which shows the characters after it in another order, makes the message unreadable instead.
 """
 
 from __future__ import annotations

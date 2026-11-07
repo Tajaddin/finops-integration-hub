@@ -89,15 +89,17 @@ ordinary echoes like "refund of $2,750.00 on invoice INV/2026/00163" (c086, h08)
   after a space ("2.4 k") (`src/hub/triage/money.py`). In a request for money back every other number counts as a
   possible amount too, invoice numbers and dates aside, so "refund 2400" with no currency is held, and so is a
   small refund that quotes an order or phone number. A number it cannot read holds the refund: letters glued to
-  it, directly or after a separator, with or without a currency ("24OO", "2S00", "1,OOO"), unless the whole token
-  is a unit, an ordinal, a time or a currency ("10oz", "2nd", "10am", "2400USD"), the litre only as an upper-case
-  L, since a lower-case l looks like a 1 ("2,50l" could be 2,501); so a letter-O typo in an id ("order 1O23")
-  holds too, the safe side. So does an amount in words ("two thousand") or an amount the model reports that is not
-  in the message. The rule does not read an invoice's own amount: a refund that names none ("refund INV/2026/00012
-  in full") is held only when the model calls it a refund request, and not when the message also names a small
-  amount. Invisible format characters (zero-width spaces and joiners, soft hyphens) and combining marks are
-  dropped before reading, so they cannot split an amount; a bidi override or isolate (U+202D, U+202E,
-  U+2066-2068), which shows the characters after it in another order, holds the refund instead.
+  it, directly, after a separator or, after a space, as a group of three look-alike characters ("24OO", "2S00",
+  "1,OOO", "1 OOO"). With a currency before the number any letters count ("$95USD", "$10oz"); without one a whole
+  token that is a unit, an ordinal, a time or a currency still reads as the number ("10oz", "2nd", "10am",
+  "2400USD"), the litre only as an upper-case L, since a lower-case l looks like a 1 ("2,50l" could be 2,501); so
+  a letter-O typo in an id ("order 1O23") holds too, the safe side. So does an amount in words ("two thousand") or
+  an amount the model reports that is not in the message. The rule does not read an invoice's own amount: a refund
+  that names none ("refund INV/2026/00012 in full") is held only when the model calls it a refund request, and not
+  when the message also names a small amount. Invisible format characters (zero-width spaces and joiners, soft
+  hyphens) and combining marks are dropped before reading, so they cannot split an amount; a bidi override or
+  isolate (U+202D, U+202E, U+2066-2068), which shows the characters after it in another order, holds the refund
+  instead.
 - Latency is a local 7B model on an 8 GB GPU; a second resident model or a game on the same GPU slows it (runbook).
 
 ## Privacy
